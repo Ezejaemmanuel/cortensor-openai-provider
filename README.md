@@ -290,8 +290,6 @@ try {
 - Streaming is currently disabled
 - Image processing not yet supported
 - Prompt template functionality may not work reliably
-- Requires both CORTENSOR_API_KEY and CORTENSOR_BASE_URL environment variables
-- Session configurations are stored in memory (cleared on restart)
 
 ## Roadmap
 
