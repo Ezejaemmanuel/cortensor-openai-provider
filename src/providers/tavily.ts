@@ -10,6 +10,7 @@ import { tavily } from '@tavily/core';
  */
 export interface TavilySearchOptions {
   maxResults?: number;
+  apiKey?: string;
   includeImages?: boolean;
   searchDepth?: 'basic' | 'advanced';
 }
@@ -17,7 +18,7 @@ export interface TavilySearchOptions {
 /**
  * Create a simple Tavily search function
  */
-export function createTavilySearch(options: TavilySearchOptions & { apiKey?: string } = {}): WebSearchCallback {
+export function createTavilySearch(options: TavilySearchOptions  = {}): WebSearchCallback {
   const apiKeyToBeUsed = options.apiKey || process.env.TAVILY_API_KEY;
 
   if (!apiKeyToBeUsed) {
