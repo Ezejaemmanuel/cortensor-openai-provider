@@ -1,6 +1,6 @@
 # Cortensor OpenAI Provider
 
-**Version: 0.0.1** | 🚧 **EXPERIMENTAL - ACTIVELY IN DEVELOPMENT** 🚧
+**Version: 0.2.0** | 🚧 **EXPERIMENTAL - ACTIVELY IN DEVELOPMENT** 🚧
 
 OpenAI-compatible provider for Cortensor AI models, designed to work seamlessly with Vercel AI SDK and popular agent frameworks.
 
@@ -9,6 +9,8 @@ OpenAI-compatible provider for Cortensor AI models, designed to work seamlessly 
 - 🔄 **OpenAI Compatibility**: Drop-in replacement for OpenAI provider
 - 🎯 **Session Management**: Built-in session handling for conversation continuity
 - 🔀 **Request/Response Transformation**: Seamless format conversion between OpenAI and Cortensor APIs
+- 🔍 **Web Search Integration**: Built-in web search capabilities with Tavily provider support
+- 🔧 **Custom Search Providers**: Flexible web search provider interface for custom implementations
 - 📘 **TypeScript Support**: Full type safety with comprehensive TypeScript definitions
 - 🤖 **Agent Framework Ready**: Compatible with Mastra, Convex, and other AI agent frameworks
 - ⚡ **Lightweight**: Minimal dependencies for optimal performance
@@ -25,15 +27,153 @@ npm install cortensor-openai-provider
 yarn add cortensor-openai-provider
 ```
 
+### Dependencies
+
+The package includes the following key dependencies:
+- `@ai-sdk/openai-compatible`: OpenAI compatibility layer
+- `@tavily/core`: Built-in web search provider (Tavily integration)
+- `ai`: Peer dependency for Vercel AI SDK integration
+
+> **Note**: The `@tavily/core` dependency is included for the built-in web search functionality, but you can use custom search providers without requiring a Tavily API key.
+
 ## Environment Setup
 
 ```bash
 # .env.local or .env
 CORTENSOR_API_KEY=your_cortensor_api_key_here
 CORTENSOR_BASE_URL=https://your-cortensor-api-url.com
+
+# Optional: For web search functionality
+TAVILY_API_KEY=your_tavily_api_key_here
 ```
 
-> **Important**: Both `CORTENSOR_API_KEY` and `CORTENSOR_BASE_URL` are required environment variables.
+> **Important**: Both `CORTENSOR_API_KEY` and `CORTENSOR_BASE_URL` are required environment variables. `TAVILY_API_KEY` is optional and only needed if you want to use the built-in Tavily web search provider.
+
+## 🔍 Web Search Integration
+
+The Cortensor OpenAI Provider includes powerful web search capabilities that allow your AI models to access real-time information from the internet. This feature supports multiple search providers and flexible configuration options.
+
+### Search Modes
+
+The web search functionality supports three different modes:
+
+- **`prompt`** (default): Search is triggered by `[search]` markers in user messages
+- **`force`**: Always perform web search for every request
+- **`disable`**: Completely disable web search functionality
+
+### Search Directives
+
+You can control search behavior using special markers in your messages:
+
+- **`[search]`**: Forces a web search for this message (removed from final prompt)
+- **`[no-search]`**: Prevents web search for this message (removed from final prompt)
+
+### Built-in Tavily Provider
+
+```typescript
+import { cortensorModel, createTavilySearch } from 'cortensor-openai-provider';
+import { generateText } from 'ai';
+
+// Create Tavily search provider
+const tavilySearch = createTavilySearch({
+  apiKey: process.env.TAVILY_API_KEY, // Optional if set in environment
+  maxResults: 5,
+  searchDepth: 'advanced'
+});
+
+// Use with cortensorModel
+const result = await generateText({
+  model: cortensorModel({
+    sessionId: 12345,
+    webSearch: {
+      mode: 'prompt', // 'prompt' | 'force' | 'disable'
+      provider: tavilySearch,
+      maxResults: 5
+    }
+  }),
+  messages: [{ 
+    role: 'user', 
+    content: '[search] What are the latest developments in AI?' 
+  }],
+});
+```
+
+### Custom Search Providers
+
+You can implement your own search provider by following the `WebSearchProvider` interface:
+
+```typescript
+import type { WebSearchProvider, WebSearchResult } from 'cortensor-openai-provider';
+
+// Option 1: Implement WebSearchProvider interface
+class CustomSearchProvider implements WebSearchProvider {
+  async search(query: string, maxResults?: number): Promise<WebSearchResult[]> {
+    // Your custom search implementation
+    const results = await yourSearchAPI(query, maxResults);
+    
+    return results.map(result => ({
+      title: result.title,
+      url: result.url,
+      snippet: result.description,
+      publishedDate: result.date // optional
+    }));
+  }
+}
+
+// Option 2: Use a simple function
+const customSearchFunction = async (query: string, maxResults?: number) => {
+  // Your search logic here
+  return [
+    {
+      title: "Example Result",
+      url: "https://example.com",
+      snippet: "This is an example search result"
+    }
+  ];
+};
+
+// Use either approach
+const model = cortensorModel({
+  sessionId: 12345,
+  webSearch: {
+    mode: 'prompt',
+    provider: new CustomSearchProvider(), // or customSearchFunction
+    maxResults: 3
+  }
+});
+```
+
+### Web Search Configuration
+
+```typescript
+interface WebSearchConfig {
+  mode: 'prompt' | 'force' | 'disable';
+  provider?: WebSearchProvider | ((query: string, maxResults?: number) => Promise<WebSearchResult[]>);
+  maxResults?: number; // Default: 5
+}
+```
+
+### Search Result Format
+
+Search results are automatically formatted and included in the model's context:
+
+```markdown
+--- WEB SEARCH RESULTS ---
+Search Query: "your search query"
+
+### 1. Result Title
+
+Result snippet or description here...
+
+**Source:** [https://example.com](https://example.com)
+**Published:** 2024-01-15
+
+---
+
+### 2. Another Result
+
+...
+```
 
 ## Quick Start
 
@@ -143,12 +283,18 @@ export const sendMessage = mutation({
 
 ```typescript
 // app/api/chat/route.ts
-import { cortensorModel } from 'cortensor-openai-provider';
+import { cortensorModel, createTavilySearch } from 'cortensor-openai-provider';
 import { generateText } from 'ai';
 import { NextRequest } from 'next/server';
 
+// Create search provider (can be reused across requests)
+const searchProvider = createTavilySearch({
+  maxResults: 3,
+  searchDepth: 'basic'
+});
+
 export async function POST(req: NextRequest) {
-  const { messages, sessionId } = await req.json();
+  const { messages, sessionId, enableSearch = false } = await req.json();
 
   const result = await generateText({
     model: cortensorModel({
@@ -156,12 +302,38 @@ export async function POST(req: NextRequest) {
       modelName: 'cortensor-chat',
       temperature: 0.7,
       maxTokens: 256,
+      // Enable web search if requested
+      ...(enableSearch && {
+        webSearch: {
+          mode: 'prompt',
+          provider: searchProvider,
+          maxResults: 3
+        }
+      })
     }),
     messages,
   });
 
   return Response.json({ response: result.text });
 }
+```
+
+#### Usage with Web Search
+
+```typescript
+// Client-side usage
+const response = await fetch('/api/chat', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    sessionId: 12345,
+    enableSearch: true,
+    messages: [{
+      role: 'user',
+      content: '[search] What are the latest AI developments in 2024?'
+    }]
+  })
+});
 ```
 
 ### Express.js Server
@@ -211,6 +383,10 @@ Creates a Cortensor model instance with session management.
   - `timeout` (number, optional): Request timeout in seconds (default: 60)
   - `promptType` (number, optional): Prompt type identifier (default: 1)
   - `promptTemplate` (string, optional): Custom prompt template (default: '')
+  - `webSearch` (object, optional): Web search configuration
+    - `mode` ('prompt' | 'force' | 'disable'): Search mode (default: 'prompt')
+    - `provider` (WebSearchProvider | function): Search provider instance or function
+    - `maxResults` (number, optional): Maximum search results (default: 3)
 
 ### `createCortensorProvider(config?)`
 
@@ -278,6 +454,9 @@ try {
 ### Current Status
 - ✅ Basic OpenAI compatibility
 - ✅ Session management with automatic cleanup
+- ✅ **Web search integration with Tavily provider**
+- ✅ **Custom web search provider support**
+- ✅ **Search directives and flexible search modes**
 - ✅ Full TypeScript support with comprehensive types
 - ✅ Agent framework integration (Mastra, Convex)
 - ✅ Request/response transformation
@@ -290,6 +469,7 @@ try {
 - Streaming is currently disabled
 - Image processing not yet supported
 - Prompt template functionality may not work reliably
+- Web search requires external API keys (Tavily or custom provider)
 
 ## Roadmap
 
