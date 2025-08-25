@@ -5,7 +5,7 @@
  * the Cortensor OpenAI Provider package for type safety and consistency.
  */
 
-import type { ModelMessage } from 'ai';
+import type { CoreMessage } from 'ai';
 
 
 // ============================================================================
@@ -86,7 +86,7 @@ export interface CortensorResponse {
  */
 export interface OpenAIRequest {
   model: string;
-  messages: ModelMessage[];
+  messages: CoreMessage[];
   stream?: boolean;
   temperature?: number;
   max_tokens?: number;
@@ -143,7 +143,7 @@ export interface OpenAIResponse {
  */
 export interface SearchDirectives {
   shouldSearch: boolean;
-  cleanedMessages: ModelMessage[];
+  cleanedMessages: CoreMessage[];
 }
 
 /**

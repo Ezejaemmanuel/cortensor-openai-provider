@@ -6,7 +6,7 @@
  * enabling seamless integration with the Vercel AI SDK.
  */
 
-import type { ModelMessage } from 'ai';
+import type { CoreMessage } from 'ai';
 import type {
   CortensorModelConfig,
   WebSearchResult,
@@ -34,7 +34,7 @@ import { DEFAULT_MODEL_CONFIG } from './constants';
  * @returns Search directives and cleaned messages
  */
 export function extractSearchDirectives(
-  messages: ModelMessage[],
+  messages: CoreMessage[],
   webSearchConfig?: CortensorModelConfig['webSearch']
 ): SearchDirectives {
   if (!webSearchConfig) {
@@ -86,7 +86,7 @@ export function extractSearchDirectives(
     }
   }
 
-  const cleanedMessages: ModelMessage[] = [
+  const cleanedMessages: CoreMessage[] = [
     ...messages.slice(0, -1),
     {
       ...lastMessage,
@@ -109,7 +109,7 @@ export function extractSearchDirectives(
  * @returns Promise resolving to search query string
  */
 export async function generateSearchQuery(
-  messages: ModelMessage[],
+  messages: CoreMessage[],
   cortensorConfig: { apiKey: string; baseUrl: string; sessionId: number }
 ): Promise<string> {
   if (messages.length === 0) {
@@ -191,7 +191,7 @@ export function formatSearchResults(
  * @returns Enhanced prompt string
  */
 export function buildPromptWithSearchResults(
-  messages: ModelMessage[],
+  messages: CoreMessage[],
   searchResults: WebSearchResult[],
   searchQuery: string
 ): string {
@@ -213,7 +213,7 @@ export function buildPromptWithSearchResults(
  * @param message - The message to extract content from
  * @returns The extracted text content
  */
-function extractMessageContent(message: ModelMessage): string {
+function extractMessageContent(message: CoreMessage): string {
   if (typeof message.content === 'string') {
     return message.content;
   }
@@ -249,7 +249,7 @@ function extractMessageContent(message: ModelMessage): string {
  * @param conversationMessages - Array of conversation messages
  * @returns Formatted prompt string
  */
-function buildFormattedPrompt(systemMessages: ModelMessage[], conversationMessages: ModelMessage[]): string {
+function buildFormattedPrompt(systemMessages: CoreMessage[], conversationMessages: CoreMessage[]): string {
   let prompt = '';
 
   // Add system instructions section if present
