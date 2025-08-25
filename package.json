@@ -43,7 +43,8 @@
   },
   "homepage": "https://github.com/Ezejaemmanuel/cortensor-openai-provider#readme",
   "dependencies": {
-    "@ai-sdk/openai-compatible": "^0.2.16"
+    "@ai-sdk/openai-compatible": "^0.2.16",
+    "@tavily/core": "0.5.11"
   },
   "peerDependencies": {
     "ai": ">=4.0.0"

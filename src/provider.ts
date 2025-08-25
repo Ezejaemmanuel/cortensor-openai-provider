@@ -13,16 +13,78 @@ import { transformToCortensor, transformToOpenAI } from './transformers';
 // ENVIRONMENT CONFIGURATION
 // ============================================================================
 
-// Load required environment variables
+// Load environment variables (validation happens at runtime)
 const CORTENSOR_API_KEY = process.env.CORTENSOR_API_KEY;
 const CORTENSOR_BASE_URL = process.env.CORTENSOR_BASE_URL;
 
-// Validate required environment variables
-if (!CORTENSOR_API_KEY || !CORTENSOR_BASE_URL) {
-  throw new Error(
-    'Missing required environment variables: CORTENSOR_API_KEY and CORTENSOR_BASE_URL must be set'
-  );
+// ============================================================================
+// CUSTOM ERROR CLASSES
+// ============================================================================
+
+/**
+ * Base error class for Cortensor-related errors
+ */
+export class CortensorError extends Error {
+  constructor(message: string, public code: string) {
+    super(message);
+    this.name = 'CortensorError';
+  }
 }
+
+/**
+ * Error thrown when web search operations fail
+ */
+export class WebSearchError extends CortensorError {
+  constructor(message: string) {
+    super(message, 'WEB_SEARCH_ERROR');
+  }
+}
+
+/**
+ * Error thrown when configuration is invalid
+ */
+export class ConfigurationError extends CortensorError {
+  constructor(message: string) {
+    super(message, 'CONFIGURATION_ERROR');
+  }
+}
+
+/**
+ * Validates Cortensor configuration at runtime
+ * @param apiKey - API key to validate
+ * @param baseUrl - Base URL to validate
+ * @throws ConfigurationError if validation fails
+ */
+function validateCortensorConfig(apiKey?: string, baseUrl?: string): void {
+  if (!apiKey) {
+    throw new ConfigurationError(
+      'CORTENSOR_API_KEY is required. Set it as environment variable or pass it explicitly.'
+    );
+  }
+  if (!baseUrl) {
+    throw new ConfigurationError(
+      'CORTENSOR_BASE_URL is required. Set it as environment variable or pass it explicitly.'
+    );
+  }
+}
+
+// ============================================================================
+// WEB SEARCH INTERFACES
+// ============================================================================
+
+/**
+ * Base interface for web search providers
+ */
+export interface WebSearchProvider {
+  search(query: string, maxResults?: number): Promise<WebSearchResult[]>;
+}
+
+/**
+ * Flexible callback type - can be a provider or direct function
+ */
+export type WebSearchCallback =
+  | WebSearchProvider
+  | ((query: string, maxResults?: number) => Promise<WebSearchResult[]>);
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -44,24 +106,24 @@ function extractModelConfiguration(requestBody: string): {
   try {
     const parsedBody = JSON.parse(requestBody);
     const modelName = parsedBody.model;
-    
+
     if (typeof modelName !== 'string') {
       throw new Error('Model name must be a string');
     }
-    
+
     // Extract session ID from model name
     const sessionMatch = modelName.match(/-session-(\d+)$/);
     if (!sessionMatch || !sessionMatch[1]) {
       throw new Error('Session ID not found in model name. Model name should end with "-session-{sessionId}"');
     }
-    
+
     const sessionId = parseInt(sessionMatch[1]);
     const modelConfig = modelConfigurations.get(modelName);
-    
+
     if (!modelConfig) {
       throw new Error(`Model configuration not found for model: ${modelName}`);
     }
-    
+
     return {
       sessionId,
       modelConfig
@@ -78,30 +140,39 @@ function extractModelConfiguration(requestBody: string): {
  * @returns Response object with error details
  */
 function createProviderErrorResponse(error: unknown): Response {
-  const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-  
-  const errorResponse = {
-    id: `cortensor-error-${Date.now()}`,
-    object: 'chat.completion',
-    created: Math.floor(Date.now() / 1000),
-    model: 'cortensor-model',
-    choices: [
-      {
-        index: 0,
-        message: {
-          role: 'assistant',
-          content: `I apologize, but I encountered an error: ${errorMessage}`
-        },
-        finish_reason: 'stop'
-      }
-    ]
-  };
+  let errorMessage = 'Unknown error';
+  let errorCode = 'UNKNOWN_ERROR';
+  let statusCode = 500;
 
-  return new Response(JSON.stringify(errorResponse), {
-    status: 500,
-    statusText: 'Internal Server Error',
-    headers: { 'Content-Type': 'application/json' }
-  });
+  if (error instanceof CortensorError) {
+    errorMessage = error.message;
+    errorCode = error.code;
+
+    // Set appropriate status codes for different error types
+    if (error instanceof ConfigurationError) {
+      statusCode = 400; // Bad Request
+    } else if (error instanceof WebSearchError) {
+      statusCode = 502; // Bad Gateway
+    }
+  } else if (error instanceof Error) {
+    errorMessage = error.message;
+  }
+
+  return new Response(
+    JSON.stringify({
+      error: {
+        message: errorMessage,
+        type: 'provider_error',
+        code: errorCode
+      }
+    }),
+    {
+      status: statusCode,
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    }
+  );
 }
 
 /**
@@ -112,10 +183,10 @@ function createProviderErrorResponse(error: unknown): Response {
 async function processRequest(requestBody: string): Promise<Response> {
   // Extract configuration from request
   const { sessionId, modelConfig } = extractModelConfiguration(requestBody);
-  
+
   // Transform to Cortensor format
-  const cortensorRequest = transformToCortensor(requestBody, sessionId, modelConfig);
-  
+  const transformResult = await transformToCortensor(requestBody, sessionId, modelConfig);
+
   // Prepare API request
   const cortensorUrl = `${CORTENSOR_BASE_URL}/api/v1/completions`;
   const cortensorOptions: RequestInit = {
@@ -124,16 +195,16 @@ async function processRequest(requestBody: string): Promise<Response> {
       'Authorization': `Bearer ${CORTENSOR_API_KEY}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(cortensorRequest),
+    body: JSON.stringify(transformResult.request),
   };
-  
+
   // Make API call
   const cortensorResponse = await fetch(cortensorUrl, cortensorOptions);
-  
+
   if (!cortensorResponse.ok) {
     throw new Error(`Cortensor API error: ${cortensorResponse.status} ${cortensorResponse.statusText}`);
   }
-  
+
   // Process response
   const responseText = await cortensorResponse.text();
   const cortensorResponseClone = new Response(responseText, {
@@ -141,9 +212,9 @@ async function processRequest(requestBody: string): Promise<Response> {
     statusText: cortensorResponse.statusText,
     headers: cortensorResponse.headers
   });
-  
-  // Transform back to OpenAI format
-  return await transformToOpenAI(cortensorResponseClone);
+
+  // Transform back to OpenAI format with web search results
+  return await transformToOpenAI(cortensorResponseClone, transformResult.webSearchResults, transformResult.searchQuery);
 }
 
 // ============================================================================
@@ -156,20 +227,23 @@ async function processRequest(requestBody: string): Promise<Response> {
  */
 export const cortensorProvider = createOpenAICompatible({
   name: 'cortensor',
-  baseURL: `${CORTENSOR_BASE_URL}/v1`,
+  baseURL: `${CORTENSOR_BASE_URL || 'https://api.cortensor.com'}/v1`,
   headers: {
-    'Authorization': `Bearer ${CORTENSOR_API_KEY}`,
+    'Authorization': `Bearer ${CORTENSOR_API_KEY || ''}`,
     'Content-Type': 'application/json',
   },
   fetch: async (input, options: RequestInit = {}) => {
     try {
+      // Validate configuration at runtime
+      validateCortensorConfig(CORTENSOR_API_KEY, CORTENSOR_BASE_URL);
+
       const requestBody = options.body as string;
       return await processRequest(requestBody);
     } catch (error) {
       console.error('Cortensor provider error:', error);
       return createProviderErrorResponse(error);
     }
-  }
+  },
 });
 
 // ============================================================================
@@ -205,7 +279,7 @@ export function cortensorModel(config: CortensorModelConfig): ReturnType<typeof 
 
   // Create a unique model identifier that includes session ID
   const uniqueModelName = `${modelName}-session-${sessionId}`;
-  
+
   // Store the complete configuration globally
   const configToStore = {
     sessionId,
@@ -221,7 +295,7 @@ export function cortensorModel(config: CortensorModelConfig): ReturnType<typeof 
     promptType,
     promptTemplate
   };
-  
+
   modelConfigurations.set(uniqueModelName, configToStore);
 
   // Create model instance with unique name that contains session ID
@@ -246,6 +320,33 @@ export interface CortensorConfig {
   timeout?: number;
   /** Session timeout in seconds */
   sessionTimeout?: number;
+}
+
+/**
+ * Web search result structure
+ */
+export interface WebSearchResult {
+  title: string;
+  url: string;
+  snippet: string;
+  publishedDate?: string;
+}
+
+/**
+ * Web search request structure
+ */
+export interface WebSearchRequest {
+  query: string;
+  maxResults: number;
+}
+
+/**
+ * Web search configuration options
+ */
+export interface WebSearchConfig {
+  mode: 'prompt' | 'force' | 'disable';
+  provider?: WebSearchCallback;
+  maxResults?: number;
 }
 
 /**
@@ -276,16 +377,18 @@ export interface CortensorModelConfig {
   promptType?: number;
   /** Custom prompt template */
   promptTemplate?: string;
+  /** Web search configuration */
+  webSearch?: WebSearchConfig;
 }
 
 // ============================================================================
 // EXPORTS
 // ============================================================================
 
-// Re-export transformer functions for external use
+// Re-export transformer functions for convenience
 export { transformToCortensor, transformToOpenAI } from './transformers';
 
-// Re-export transformer types for external use
+// Re-export types for external use
 export type {
   OpenAIRequest,
   CortensorRequest,
@@ -293,7 +396,7 @@ export type {
   CortensorResponse,
   CortensorChoice,
   CortensorUsage
-} from './transformers';
+} from './types';
 
 // ============================================================================
 // CUSTOM PROVIDER FACTORY
@@ -348,10 +451,10 @@ export function createCortensorProvider(config: CortensorConfig = {}) {
   async function processCustomRequest(requestBody: string): Promise<Response> {
     // Extract configuration from request
     const { sessionId, modelConfig } = extractModelConfiguration(requestBody);
-    
+
     // Transform to Cortensor format
     const cortensorRequest = transformToCortensor(requestBody, sessionId, modelConfig);
-    
+
     // Prepare API request with custom config
     const cortensorUrl = `${CORTENSOR_BASE_URL}/api/v1/completions`;
     const cortensorOptions: RequestInit = {
@@ -362,14 +465,14 @@ export function createCortensorProvider(config: CortensorConfig = {}) {
       },
       body: JSON.stringify(cortensorRequest),
     };
-    
+
     // Make API call
     const cortensorResponse = await fetch(cortensorUrl, cortensorOptions);
-    
+
     if (!cortensorResponse.ok) {
       throw new Error(`Cortensor API error: ${cortensorResponse.status} ${cortensorResponse.statusText}`);
     }
-    
+
     // Process response
     const responseText = await cortensorResponse.text();
     const cortensorResponseClone = new Response(responseText, {
@@ -377,7 +480,7 @@ export function createCortensorProvider(config: CortensorConfig = {}) {
       statusText: cortensorResponse.statusText,
       headers: cortensorResponse.headers
     });
-    
+
     // Transform back to OpenAI format
     return await transformToOpenAI(cortensorResponseClone);
   }

@@ -6,96 +6,214 @@
  * enabling seamless integration with the Vercel AI SDK.
  */
 
-import type { CoreMessage } from 'ai';
-import type { CortensorModelConfig } from './provider';
+import type { ModelMessage } from 'ai';
+import type { 
+  CortensorModelConfig, 
+  WebSearchResult, 
+  WebSearchCallback,
+  CortensorRequest,
+  CortensorResponse,
+  CortensorChoice,
+  CortensorUsage,
+  OpenAIRequest,
+  OpenAIResponse,
+  SearchDirectives,
+  CortensorTransformResult
+} from './types';
+import { WebSearchError, ConfigurationError } from './provider';
 
 // ============================================================================
-// TYPE DEFINITIONS
+// WEB SEARCH FUNCTIONALITY
 // ============================================================================
 
 /**
- * Request format expected by the Cortensor API
+ * Extracts search directives from messages and cleans the content
+ * @param messages - Array of conversation messages
+ * @param webSearchConfig - Web search configuration
+ * @returns Search directives and cleaned messages
  */
-export interface CortensorRequest {
-  session_id: number;
-  prompt: string;
-  prompt_type?: number;
-  prompt_template?: string;
-  stream?: boolean;
-  timeout?: number;
-  client_reference?: string;
-  max_tokens?: number;
-  temperature?: number;
-  top_p?: number;
-  top_k?: number;
-  presence_penalty?: number;
-  frequency_penalty?: number;
-}
-
-/**
- * Request format from OpenAI/Vercel AI SDK
- */
-export interface OpenAIRequest {
-  model: string;
-  messages: CoreMessage[];
-  stream?: boolean;
-  temperature?: number;
-  max_tokens?: number;
-  [key: string]: unknown;
-}
-
-/**
- * Response format expected by OpenAI/Vercel AI SDK
- */
-export interface OpenAIResponse {
-  id: string;
-  object: string;
-  created: number;
-  model: string;
-  choices: Array<{
-    index: number;
-    message: {
-      role: string;
-      content: string;
+export function extractSearchDirectives(
+  messages: ModelMessage[],
+  webSearchConfig?: CortensorModelConfig['webSearch']
+): SearchDirectives {
+  if (!webSearchConfig) {
+    return {
+      shouldSearch: false,
+      cleanedMessages: messages,
     };
-    finish_reason: string;
-  }>;
-  usage?: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
+  }
+
+  if (messages.length === 0) {
+    return {
+      shouldSearch: false,
+      cleanedMessages: messages,
+    };
+  }
+
+  const lastMessage = messages[messages.length - 1];
+  if (!lastMessage) {
+    return {
+      shouldSearch: false,
+      cleanedMessages: messages,
+    };
+  }
+
+  const originalContent = extractMessageContent(lastMessage);
+  let cleanedContent = originalContent;
+  let shouldSearch = false;
+
+  // Check for [search] marker
+  const hasSearchMarker = /\[search\]/i.test(originalContent);
+  // Check for [no-search] marker
+  const hasNoSearchMarker = /\[no-search\]/i.test(originalContent);
+
+  // Remove markers from content
+  cleanedContent = cleanedContent.replace(/\[search\]/gi, '').replace(/\[no-search\]/gi, '').trim();
+
+  // Determine if search should be performed based on mode and markers
+  if (webSearchConfig.mode === 'force') {
+    shouldSearch = true;
+  } else if (webSearchConfig.mode === 'disable') {
+    shouldSearch = false;
+  } else { // prompt-based mode
+    if (hasNoSearchMarker) {
+      shouldSearch = false;
+    } else if (hasSearchMarker) {
+      shouldSearch = true;
+    } else {
+      shouldSearch = false; // Default to no search unless explicitly requested
+    }
+  }
+
+  const cleanedMessages: ModelMessage[] = [
+    ...messages.slice(0, -1),
+    {
+      ...lastMessage,
+      content: cleanedContent as any
+    }
+  ];
+
+  return {
+    shouldSearch,
+    cleanedMessages,
   };
 }
 
+
+
 /**
- * Individual choice in Cortensor API response
+ * Generates a search query from conversation messages
+ * @param messages - Array of conversation messages
+ * @param cortensorConfig - Configuration for making API calls to Cortensor
+ * @returns Promise resolving to search query string
  */
-export interface CortensorChoice {
-  finish_reason: string;
-  index: number;
-  logprobs: null | any;
-  text: string;
+export async function generateSearchQuery(
+  messages: ModelMessage[],
+  cortensorConfig: { apiKey: string; baseUrl: string; sessionId: number }
+): Promise<string> {
+  if (messages.length === 0) {
+    return 'general information';
+  }
+
+  const lastMessage = messages[messages.length - 1];
+  if (!lastMessage) {
+    return 'general information';
+  }
+
+  const userPrompt = extractMessageContent(lastMessage);
+
+  // Create a prompt to ask the model to generate a search query
+  const searchQueryPrompt = `Convert the following user prompt into a concise web search query (maximum 10 words). Only return the search query, nothing else:\n\nUser prompt: ${userPrompt}`;
+
+  try {
+    // Validate configuration
+    if (!cortensorConfig.apiKey || !cortensorConfig.baseUrl) {
+      throw new ConfigurationError('API key and base URL are required for search query generation');
+    }
+
+    const response = await fetch(`${cortensorConfig.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${cortensorConfig.apiKey}`
+      },
+      body: JSON.stringify({
+        session_id: cortensorConfig.sessionId,
+        prompt: searchQueryPrompt,
+        max_tokens: 50,
+        temperature: 0.1
+      })
+    });
+
+    if (!response.ok) {
+      throw new WebSearchError(`Failed to generate search query: API request failed with status ${response.status}`);
+    }
+
+    const data = await response.json();
+    const searchQuery = data.choices?.[0]?.text?.trim() || userPrompt;
+
+    return searchQuery;
+  } catch (error) {
+    if (error instanceof ConfigurationError || error instanceof WebSearchError) {
+      throw error; // Re-throw custom errors
+    }
+    console.warn('Failed to generate search query via API, using original prompt:', error);
+    return userPrompt;
+  }
 }
 
 /**
- * Token usage information from Cortensor API
+ * Formats search results for inclusion in the prompt
+ * @param results - Array of search results
+ * @param query - The search query used
+ * @param format - Format type for results
+ * @returns Formatted search results string
  */
-export interface CortensorUsage {
-  completion_tokens: number;
-  prompt_tokens: number;
-  total_tokens: number;
+export function formatSearchResults(
+  results: WebSearchResult[],
+  query: string,
+  format: 'json' | 'markdown' | 'plain' = 'markdown'
+): string {
+  if (results.length === 0) {
+    return `No search results found for query: "${query}"`;
+  }
+
+  switch (format) {
+    case 'json':
+      return JSON.stringify(results, null, 2);
+
+    case 'plain':
+      return results.map((result, index) =>
+        `${index + 1}. ${result.title}\n${result.snippet}\nSource: ${result.url}\n`
+      ).join('\n');
+
+    case 'markdown':
+    default:
+      return results.map((result, index) =>
+        `### ${index + 1}. ${result.title}\n\n${result.snippet}\n\n**Source:** [${result.url}](${result.url})${result.publishedDate ? `\n**Published:** ${result.publishedDate}` : ''}\n`
+      ).join('\n---\n\n');
+  }
 }
 
 /**
- * Response format from Cortensor API
+ * Builds a prompt enhanced with search results
+ * @param messages - Original conversation messages
+ * @param searchResults - Web search results
+ * @param searchQuery - The query used for searching
+ * @returns Enhanced prompt string
  */
-export interface CortensorResponse {
-  choices: CortensorChoice[];
-  created: number;
-  id: string;
-  model: string;
-  object: string;
-  usage: CortensorUsage;
+export function buildPromptWithSearchResults(
+  messages: ModelMessage[],
+  searchResults: WebSearchResult[],
+  searchQuery: string
+): string {
+  const systemMessages = messages.filter(msg => msg.role === 'system');
+  const conversationMessages = messages.filter(msg => msg.role !== 'system');
+
+  const originalPrompt = buildFormattedPrompt(systemMessages, conversationMessages);
+  const formattedResults = formatSearchResults(searchResults, searchQuery);
+
+  return `${originalPrompt}\n\n--- WEB SEARCH RESULTS ---\nSearch Query: "${searchQuery}"\n\n${formattedResults}\n\nPlease use the above search results to provide an accurate, up-to-date response. If the search results are relevant, incorporate the information into your answer. If they're not relevant, you can ignore them and provide a general response.`;
 }
 
 // ============================================================================
@@ -103,31 +221,35 @@ export interface CortensorResponse {
 // ============================================================================
 
 /**
- * Extracts text content from a CoreMessage, handling different content types
+ * Extracts text content from a message, handling both string and array formats
  * @param message - The message to extract content from
  * @returns The extracted text content
  */
-function extractMessageContent(message: CoreMessage): string {
-  // Handle simple string content
+function extractMessageContent(message: ModelMessage): string {
   if (typeof message.content === 'string') {
     return message.content;
   }
 
-  // Handle array content (multimodal messages)
   if (Array.isArray(message.content)) {
     return message.content
+      .filter(part => {
+        // Handle string parts
+        if (typeof part === 'string') return true;
+        // Handle text objects
+        if (typeof part === 'object' && part !== null && 'type' in part) {
+          return part.type === 'text';
+        }
+        return false;
+      })
       .map(part => {
         if (typeof part === 'string') {
           return part;
         }
-        // Extract text from text parts, skip other types (images, files)
-        if (part.type === 'text') {
-          return part.text;
-        }
-        return '';
+        // Extract text from text objects
+        return (part as any).text || '';
       })
-      .filter(text => text.length > 0)
-      .join(' ');
+      .join(' ')
+      .trim();
   }
 
   return '';
@@ -139,7 +261,7 @@ function extractMessageContent(message: CoreMessage): string {
  * @param conversationMessages - Array of conversation messages
  * @returns Formatted prompt string
  */
-function buildFormattedPrompt(systemMessages: CoreMessage[], conversationMessages: CoreMessage[]): string {
+function buildFormattedPrompt(systemMessages: ModelMessage[], conversationMessages: ModelMessage[]): string {
   let prompt = '';
 
   // Add system instructions section if present
@@ -178,31 +300,104 @@ function buildFormattedPrompt(systemMessages: CoreMessage[], conversationMessage
 }
 
 /**
+ * Helper function to handle different web search callback types
+ * @param query - The search query
+ * @param provider - The web search provider (object or function)
+ * @param maxResults - Maximum number of results to return
+ * @returns Promise resolving to search results
+ */
+async function handleWebSearch(
+  query: string,
+  provider: WebSearchCallback,
+  maxResults: number
+): Promise<WebSearchResult[]> {
+  try {
+    // Check if it's a provider object with search method or direct function
+    if (typeof provider === 'function') {
+      return await provider(query, maxResults);
+    } else {
+      return await provider.search(query, maxResults);
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown web search error';
+    throw new WebSearchError(`Web search failed: ${errorMessage}`);
+  }
+}
+
+/**
  * Transforms OpenAI request format to Cortensor API format
  * @param requestBody - The OpenAI-formatted request body as string
  * @param sessionId - The session ID to include in the request
  * @param modelConfig - Optional model configuration to override defaults
- * @returns Cortensor-formatted request object
+ * @returns Cortensor transform result with request and optional web search data
  */
-export function transformToCortensor(
+export async function transformToCortensor(
   requestBody: string,
   sessionId: number,
   modelConfig?: CortensorModelConfig
-): CortensorRequest {
+): Promise<CortensorTransformResult> {
   try {
     const openAIRequest: OpenAIRequest = JSON.parse(requestBody);
 
-    // Separate system instructions from conversation messages
-    const systemMessages = openAIRequest.messages.filter(msg => msg.role === 'system');
-    const conversationMessages = openAIRequest.messages.filter(msg => msg.role !== 'system');
+    // Extract search directives and clean messages
+    const searchDirectives = extractSearchDirectives(openAIRequest.messages, modelConfig?.webSearch);
+    let finalPrompt: string = '';
+    let webSearchResults: WebSearchResult[] | undefined;
+    let searchQuery: string | undefined;
 
-    // Build the formatted prompt
-    const prompt = buildFormattedPrompt(systemMessages, conversationMessages);
+    // Handle web search if needed
+    if (searchDirectives.shouldSearch && modelConfig?.webSearch?.provider) {
+      try {
+        // Generate search query using main Cortensor configuration
+        searchQuery = await generateSearchQuery(
+          searchDirectives.cleanedMessages,
+          {
+            apiKey: process.env.CORTENSOR_API_KEY || '',
+            baseUrl: process.env.CORTENSOR_BASE_URL || '',
+            sessionId: sessionId
+          }
+        );
+
+        // Perform web search using flexible provider
+        webSearchResults = await handleWebSearch(
+          searchQuery,
+          modelConfig.webSearch.provider,
+          modelConfig.webSearch.maxResults ?? 5
+        );
+
+        // Build enhanced prompt with search results
+        finalPrompt = buildPromptWithSearchResults(
+          searchDirectives.cleanedMessages,
+          webSearchResults,
+          searchQuery
+        );
+      } catch (error) {
+        if (error instanceof ConfigurationError) {
+          throw error;
+        }
+
+        // Log web search errors but continue with fallback
+        if (error instanceof WebSearchError) {
+          console.warn('Web search failed, continuing without search results:', error.message);
+        } else {
+          console.warn('Unexpected error during web search:', error);
+        }
+
+        // Fall through to standard prompt building
+      }
+    }
+
+    // Build standard prompt if no search or search failed
+    if (!finalPrompt) {
+      const systemMessages = searchDirectives.cleanedMessages.filter(msg => msg.role === 'system');
+      const conversationMessages = searchDirectives.cleanedMessages.filter(msg => msg.role !== 'system');
+      finalPrompt = buildFormattedPrompt(systemMessages, conversationMessages);
+    }
 
     // Create Cortensor request with model config or defaults
     const cortensorRequest: CortensorRequest = {
       session_id: sessionId,
-      prompt,
+      prompt: finalPrompt,
       prompt_type: modelConfig?.promptType ?? 1,
       prompt_template: modelConfig?.promptTemplate ?? '',
       stream: modelConfig?.stream ?? false,
@@ -216,9 +411,19 @@ export function transformToCortensor(
       frequency_penalty: modelConfig?.frequencyPenalty ?? 0
     };
 
+    const result: CortensorTransformResult = {
+      request: cortensorRequest
+    };
     
-
-    return cortensorRequest;
+    if (webSearchResults) {
+      result.webSearchResults = webSearchResults;
+    }
+    
+    if (searchQuery) {
+      result.searchQuery = searchQuery;
+    }
+    
+    return result;
   } catch (error) {
     console.error('Error transforming to Cortensor format:', error);
     throw new Error('Failed to transform request to Cortensor format');
@@ -253,21 +458,46 @@ function createErrorResponse(errorMessage: string = 'Sorry, I encountered an err
 /**
  * Transforms Cortensor response to OpenAI format
  * @param cortensorResponse - The response from Cortensor API
+ * @param webSearchResults - Optional web search results to include as tool calls
+ * @param searchQuery - The search query used (if any)
  * @returns Promise<Response> - OpenAI-formatted response
  */
-export async function transformToOpenAI(cortensorResponse: Response): Promise<Response> {
+export async function transformToOpenAI(
+  cortensorResponse: Response, 
+  webSearchResults?: WebSearchResult[], 
+  searchQuery?: string
+): Promise<Response> {
   try {
     const cortensorData = await cortensorResponse.json() as CortensorResponse;
 
     // Transform choices to OpenAI format
-    const transformedChoices = cortensorData.choices.map((choice: CortensorChoice, index: number) => ({
-      index: choice.index ?? index,
-      message: {
+    const transformedChoices = cortensorData.choices.map((choice: CortensorChoice, index: number) => {
+      const message: any = {
         role: 'assistant' as const,
         content: choice.text || ''
-      },
-      finish_reason: choice.finish_reason || 'stop'
-    }));
+      };
+
+      // Add tool calls if web search results exist
+      if (webSearchResults && webSearchResults.length > 0 && searchQuery) {
+        message.tool_calls = [{
+          id: `call_web_search_${Date.now()}`,
+          type: 'function' as const,
+          function: {
+            name: 'web_search',
+            arguments: JSON.stringify({
+              query: searchQuery,
+              results: webSearchResults
+            })
+          }
+        }];
+      }
+
+      return {
+        index: choice.index ?? index,
+        message,
+        finish_reason: webSearchResults && webSearchResults.length > 0 ? 'tool_calls' : (choice.finish_reason || 'stop')
+      };
+    });
 
     // Transform usage information
     const transformedUsage = cortensorData.usage ? {

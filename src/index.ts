@@ -38,24 +38,48 @@ export {
   getStoredConfigurationsCount,
 } from './provider';
 
-// Type exports
+// Configuration type exports from provider
 export type {
   CortensorConfig,
-  CortensorModelConfig,
 } from './provider';
 
-// Transformer exports (for advanced usage)
-export {
-  transformToCortensor,
-  transformToOpenAI,
-} from './transformers';
-
-// Transformer type exports
+// All other type exports from types
 export type {
+  CortensorModelConfig,
+  WebSearchConfig,
+  WebSearchResult,
+  WebSearchRequest,
+  WebSearchProvider,
+  WebSearchCallback,
   OpenAIRequest,
   CortensorRequest,
   OpenAIResponse,
   CortensorResponse,
   CortensorChoice,
   CortensorUsage,
+  SearchDirectives,
+  CortensorTransformResult,
+  OpenAIToolCall,
+  OpenAIMessage,
+  OpenAIChoice,
+  OpenAIUsage,
+} from './types';
+
+// Tavily provider exports
+export {
+  createTavilySearch,
+} from './providers/tavily';
+
+export type {
+  TavilySearchOptions,
+} from './providers/tavily';
+
+// Transformer function exports
+export {
+  transformToCortensor,
+  transformToOpenAI,
+  extractSearchDirectives,
+  generateSearchQuery,
+  formatSearchResults,
+  buildPromptWithSearchResults,
 } from './transformers';
