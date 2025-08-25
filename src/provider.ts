@@ -251,7 +251,7 @@ export const cortensorProvider = createOpenAICompatible({
  * @param config - Configuration options for the model (optional, uses defaults if not provided)
  * @returns Cortensor model instance with applied configuration
  */
-export function cortensorModel(config: Partial<CortensorModelConfig> = {}): ReturnType<typeof cortensorProvider> {
+export function cortensorModel(config: { sessionId: number } & Partial<Omit<CortensorModelConfig, 'sessionId'>>): ReturnType<typeof cortensorProvider> {
   // Validate required session ID
   if (!config.sessionId) {
     throw new Error('Session ID is required for Cortensor model creation');
