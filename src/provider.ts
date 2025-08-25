@@ -261,7 +261,7 @@ export function cortensorModel(config: CortensorModelConfig): ReturnType<typeof 
     sessionId,
     modelName = 'cortensor-chat',
     temperature = 0.7,
-    maxTokens = 128,
+    maxTokens = 3000,
     topP = 0.95,
     topK = 40,
     presencePenalty = 0,

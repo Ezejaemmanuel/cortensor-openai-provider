@@ -7,9 +7,9 @@
  */
 
 import type { ModelMessage } from 'ai';
-import type { 
-  CortensorModelConfig, 
-  WebSearchResult, 
+import type {
+  CortensorModelConfig,
+  WebSearchResult,
   WebSearchCallback,
   CortensorRequest,
   CortensorResponse,
@@ -403,7 +403,7 @@ export async function transformToCortensor(
       stream: modelConfig?.stream ?? false,
       timeout: modelConfig?.timeout ?? 60,
       client_reference: `user-request-${Date.now()}`,
-      max_tokens: modelConfig?.maxTokens ?? openAIRequest.max_tokens ?? 128,
+      max_tokens: modelConfig?.maxTokens ?? openAIRequest.max_tokens ?? 3000,
       temperature: modelConfig?.temperature ?? openAIRequest.temperature ?? 0.7,
       top_p: modelConfig?.topP ?? 0.95,
       top_k: modelConfig?.topK ?? 40,
@@ -414,15 +414,15 @@ export async function transformToCortensor(
     const result: CortensorTransformResult = {
       request: cortensorRequest
     };
-    
+
     if (webSearchResults) {
       result.webSearchResults = webSearchResults;
     }
-    
+
     if (searchQuery) {
       result.searchQuery = searchQuery;
     }
-    
+
     return result;
   } catch (error) {
     console.error('Error transforming to Cortensor format:', error);
@@ -463,8 +463,8 @@ function createErrorResponse(errorMessage: string = 'Sorry, I encountered an err
  * @returns Promise<Response> - OpenAI-formatted response
  */
 export async function transformToOpenAI(
-  cortensorResponse: Response, 
-  webSearchResults?: WebSearchResult[], 
+  cortensorResponse: Response,
+  webSearchResults?: WebSearchResult[],
   searchQuery?: string
 ): Promise<Response> {
   try {

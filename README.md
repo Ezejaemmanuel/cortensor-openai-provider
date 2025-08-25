@@ -188,7 +188,7 @@ const result = await generateText({
     sessionId: 12345,
     modelName: 'cortensor-chat',
     temperature: 0.7,
-    maxTokens: 128,
+    maxTokens: 3000,
   }),
   messages: [{ role: 'user', content: 'Hello!' }],
 });
@@ -374,7 +374,7 @@ Creates a Cortensor model instance with session management.
   - `sessionId` (number, required): Session ID for conversation continuity
   - `modelName` (string, optional): Model name (default: 'cortensor-chat')
   - `temperature` (number, optional): Sampling temperature 0.0-2.0 (default: 0.7)
-  - `maxTokens` (number, optional): Maximum tokens to generate (default: 128)
+  - `maxTokens` (number, optional): Maximum tokens to generate (default: 3000)
   - `topP` (number, optional): Top-p sampling parameter (default: 0.95)
   - `topK` (number, optional): Top-k sampling parameter (default: 40)
   - `presencePenalty` (number, optional): Presence penalty -2.0 to 2.0 (default: 0)
@@ -439,7 +439,7 @@ try {
       sessionId: 12345,
       modelName: 'cortensor-chat',
       temperature: 0.7,
-      maxTokens: 128,
+      maxTokens: 3000,
     }),
     messages,
   });
