@@ -65,8 +65,8 @@ The web search functionality supports three different modes:
 
 You can control search behavior using special markers in your messages:
 
-- **`[search]`**: Forces a web search for this message (removed from final prompt)
-- **`[no-search]`**: Prevents web search for this message (removed from final prompt)
+- **`[**search**]`**: Forces a web search for this message (removed from final prompt)
+- **`[**no-search**]`**: Prevents web search for this message (removed from final prompt)
 
 ### Built-in Tavily Provider
 
@@ -93,7 +93,7 @@ const result = await generateText({
   }),
   messages: [{ 
     role: 'user', 
-    content: '[search] What are the latest developments in AI?' 
+    content: '[**search**] What are the latest developments in AI?' 
   }],
 });
 ```
@@ -155,25 +155,16 @@ interface WebSearchConfig {
 
 ### Search Result Format
 
-Search results are automatically formatted and included in the model's context:
+Search results are automatically formatted with numbered citations and included in the model's response:
 
 ```markdown
---- WEB SEARCH RESULTS ---
-Search Query: "your search query"
-
-### 1. Result Title
-
-Result snippet or description here...
-
-**Source:** [https://example.com](https://example.com)
-**Published:** 2024-01-15
-
----
-
-### 2. Another Result
-
-...
+**Sources:**
+[1] [First Result Title](https://example1.com)
+[2] [Second Result Title](https://example2.com)
+[3] [Third Result Title](https://example3.com)
 ```
+
+This format follows modern AI chatbot best practices, similar to platforms like Perplexity AI, providing clean numbered citations that make it easy to reference specific sources.
 
 ## Quick Start
 
@@ -330,7 +321,7 @@ const response = await fetch('/api/chat', {
     enableSearch: true,
     messages: [{
       role: 'user',
-      content: '[search] What are the latest AI developments in 2024?'
+      content: '[**search**] What are the latest AI developments in 2024?'
     }]
   })
 });

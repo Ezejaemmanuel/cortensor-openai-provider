@@ -94,24 +94,11 @@ export interface OpenAIRequest {
 }
 
 /**
- * Tool call structure in OpenAI format
- */
-export interface OpenAIToolCall {
-  id: string;
-  type: 'function';
-  function: {
-    name: string;
-    arguments: string;
-  };
-}
-
-/**
  * Message structure in OpenAI response
  */
 export interface OpenAIMessage {
   role: string;
   content: string | null;
-  tool_calls?: OpenAIToolCall[];
   refusal?: string | null;
 }
 

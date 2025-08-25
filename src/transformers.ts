@@ -63,13 +63,13 @@ export function extractSearchDirectives(
   let cleanedContent = originalContent;
   let shouldSearch = false;
 
-  // Check for [search] marker
-  const hasSearchMarker = /\[search\]/i.test(originalContent);
-  // Check for [no-search] marker
-  const hasNoSearchMarker = /\[no-search\]/i.test(originalContent);
+  // Check for [**search**] marker
+  const hasSearchMarker = /\[\*\*search\*\*\]/i.test(originalContent);
+  // Check for [**no-search**] marker
+  const hasNoSearchMarker = /\[\*\*no-search\*\*\]/i.test(originalContent);
 
   // Remove markers from content
-  cleanedContent = cleanedContent.replace(/\[search\]/gi, '').replace(/\[no-search\]/gi, '').trim();
+  cleanedContent = cleanedContent.replace(/\[\*\*search\*\*\]/gi, '').replace(/\[\*\*no-search\*\*\]/gi, '').trim();
 
   // Determine if search should be performed based on mode and markers
   if (webSearchConfig.mode === 'force') {
@@ -164,36 +164,23 @@ export async function generateSearchQuery(
 }
 
 /**
- * Formats search results for inclusion in the prompt
+ * Formats search results as numbered citations with a sources section
  * @param results - Array of search results
- * @param query - The search query used
- * @param format - Format type for results
- * @returns Formatted search results string
+ * @returns Formatted search results with numbered citations and sources section
  */
 export function formatSearchResults(
-  results: WebSearchResult[],
-  query: string,
-  format: 'json' | 'markdown' | 'plain' = 'markdown'
+  results: WebSearchResult[]
 ): string {
   if (results.length === 0) {
-    return `No search results found for query: "${query}"`;
+    return '';
   }
 
-  switch (format) {
-    case 'json':
-      return JSON.stringify(results, null, 2);
+  // Create the sources section
+  const sources = results
+    .map((result, index) => `[${index + 1}] [${result.title}](${result.url})`)
+    .join('\n');
 
-    case 'plain':
-      return results.map((result, index) =>
-        `${index + 1}. ${result.title}\n${result.snippet}\nSource: ${result.url}\n`
-      ).join('\n');
-
-    case 'markdown':
-    default:
-      return results.map((result, index) =>
-        `### ${index + 1}. ${result.title}\n\n${result.snippet}\n\n**Source:** [${result.url}](${result.url})${result.publishedDate ? `\n**Published:** ${result.publishedDate}` : ''}\n`
-      ).join('\n---\n\n');
-  }
+  return `\n\n**Sources:**\n${sources}`;
 }
 
 /**
@@ -212,7 +199,7 @@ export function buildPromptWithSearchResults(
   const conversationMessages = messages.filter(msg => msg.role !== 'system');
 
   const originalPrompt = buildFormattedPrompt(systemMessages, conversationMessages);
-  const formattedResults = formatSearchResults(searchResults, searchQuery);
+  const formattedResults = formatSearchResults(searchResults);
 
   return `${originalPrompt}\n\n--- WEB SEARCH RESULTS ---\nSearch Query: "${searchQuery}"\n\n${formattedResults}\n\nPlease use the above search results to provide an accurate, up-to-date response. If the search results are relevant, incorporate the information into your answer. If they're not relevant, you can ignore them and provide a general response.`;
 }
@@ -473,30 +460,25 @@ export async function transformToOpenAI(
 
     // Transform choices to OpenAI format
     const transformedChoices = cortensorData.choices.map((choice: CortensorChoice, index: number) => {
+      let content = choice.text || '';
+
+      // Append search results as markdown URLs to content if they exist
+      if (webSearchResults && webSearchResults.length > 0) {
+        const searchResultsMarkdown = formatSearchResults(webSearchResults);
+        if (searchResultsMarkdown) {
+          content += `\n\n**Search Results:** ${searchResultsMarkdown}`;
+        }
+      }
+
       const message: any = {
         role: 'assistant' as const,
-        content: choice.text || ''
+        content: content
       };
-
-      // Add tool calls if web search results exist
-      if (webSearchResults && webSearchResults.length > 0 && searchQuery) {
-        message.tool_calls = [{
-          id: `call_web_search_${Date.now()}`,
-          type: 'function' as const,
-          function: {
-            name: 'web_search',
-            arguments: JSON.stringify({
-              query: searchQuery,
-              results: webSearchResults
-            })
-          }
-        }];
-      }
 
       return {
         index: choice.index ?? index,
         message,
-        finish_reason: webSearchResults && webSearchResults.length > 0 ? 'tool_calls' : (choice.finish_reason || 'stop')
+        finish_reason: choice.finish_reason || 'stop'
       };
     });
 
