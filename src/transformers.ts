@@ -403,7 +403,7 @@ export async function transformToCortensor(
       stream: modelConfig?.stream ?? false,
       timeout: modelConfig?.timeout ?? 60,
       client_reference: `user-request-${Date.now()}`,
-      max_tokens: modelConfig?.maxTokens ?? openAIRequest.max_tokens ?? 3000,
+      max_tokens: modelConfig?.maxTokens ?? 3000,
       temperature: modelConfig?.temperature ?? openAIRequest.temperature ?? 0.7,
       top_p: modelConfig?.topP ?? 0.95,
       top_k: modelConfig?.topK ?? 40,

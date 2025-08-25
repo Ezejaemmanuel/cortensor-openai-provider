@@ -6,28 +6,22 @@
  */
 
 import type { ModelMessage } from 'ai';
-import type { 
-  WebSearchResult, 
-  WebSearchCallback, 
-  WebSearchProvider,
-  CortensorModelConfig,
-  WebSearchRequest,
-  WebSearchConfig 
-} from './provider';
+
 
 // ============================================================================
 // RE-EXPORTED TYPES FROM PROVIDER
 // ============================================================================
 
-// Re-export commonly used types from provider for convenience
-export type { 
-  WebSearchResult, 
-  WebSearchCallback, 
-  WebSearchProvider,
-  CortensorModelConfig,
-  WebSearchRequest,
-  WebSearchConfig 
-};
+
+/**
+ * Simple options for Tavily search
+ */
+export interface TavilySearchOptions {
+  maxResults?: number;
+  apiKey?: string;
+  includeImages?: boolean;
+  searchDepth?: 'basic' | 'advanced';
+}
 
 // ============================================================================
 // CORTENSOR API TYPES
@@ -173,3 +167,104 @@ export interface CortensorTransformResult {
   webSearchResults?: WebSearchResult[];
   searchQuery?: string;
 }
+
+
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+/**
+ * Configuration options for Cortensor provider
+ */
+export interface CortensorConfig {
+  /** API key for authentication (optional, defaults to env var) */
+  apiKey?: string;
+  /** Base URL for the API (optional, defaults to env var) */
+  baseURL?: string;
+  /** Request timeout in seconds */
+  timeout?: number;
+  /** Session timeout in seconds */
+  sessionTimeout?: number;
+}
+
+/**
+ * Web search result structure
+ */
+export interface WebSearchResult {
+  title: string;
+  url: string;
+  snippet: string;
+  publishedDate?: string;
+}
+
+/**
+ * Web search request structure
+ */
+export interface WebSearchRequest {
+  query: string;
+  maxResults: number;
+}
+
+/**
+ * Web search configuration options
+ */
+export interface WebSearchConfig {
+  mode: 'prompt' | 'force' | 'disable';
+  provider?: WebSearchCallback;
+  maxResults?: number;
+}
+
+/**
+ * Model configuration options for Cortensor models
+ */
+export interface CortensorModelConfig {
+  /** Required session ID for the conversation */
+  sessionId: number;
+  /** Model name identifier */
+  modelName?: string;
+  /** Sampling temperature (0.0 to 2.0) */
+  temperature?: number;
+  /** Maximum tokens to generate */
+  maxTokens?: number;
+  /** Top-p sampling parameter */
+  topP?: number;
+  /** Top-k sampling parameter */
+  topK?: number;
+  /** Presence penalty (-2.0 to 2.0) */
+  presencePenalty?: number;
+  /** Frequency penalty (-2.0 to 2.0) */
+  frequencyPenalty?: number;
+  /** Whether to stream responses */
+  stream?: boolean;
+  /** Request timeout in seconds */
+  timeout?: number;
+  /** Prompt type identifier */
+  promptType?: number;
+  /** Custom prompt template */
+  promptTemplate?: string;
+  /** Web search configuration */
+  webSearch?: WebSearchConfig;
+}
+
+
+// ============================================================================
+// WEB SEARCH INTERFACES
+// ============================================================================
+
+/**
+ * Base interface for web search providers
+ */
+export interface WebSearchProvider {
+  search(query: string, maxResults?: number): Promise<WebSearchResult[]>;
+}
+
+/**
+ * Flexible callback type - can be a provider or direct function
+ */
+export type WebSearchCallback =
+  | WebSearchProvider
+  | ((query: string, maxResults?: number) => Promise<WebSearchResult[]>);
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================

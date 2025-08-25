@@ -8,6 +8,7 @@
 
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { transformToCortensor, transformToOpenAI } from './transformers';
+import type { CortensorConfig, CortensorModelConfig, WebSearchResult } from './types';
 
 // ============================================================================
 // ENVIRONMENT CONFIGURATION
@@ -68,27 +69,6 @@ function validateCortensorConfig(apiKey?: string, baseUrl?: string): void {
   }
 }
 
-// ============================================================================
-// WEB SEARCH INTERFACES
-// ============================================================================
-
-/**
- * Base interface for web search providers
- */
-export interface WebSearchProvider {
-  search(query: string, maxResults?: number): Promise<WebSearchResult[]>;
-}
-
-/**
- * Flexible callback type - can be a provider or direct function
- */
-export type WebSearchCallback =
-  | WebSearchProvider
-  | ((query: string, maxResults?: number) => Promise<WebSearchResult[]>);
-
-// ============================================================================
-// HELPER FUNCTIONS
-// ============================================================================
 
 // Global configuration store for model instances
 const modelConfigurations = new Map<string, CortensorModelConfig>();
@@ -304,82 +284,6 @@ export function cortensorModel(config: CortensorModelConfig): ReturnType<typeof 
   return modelInstance;
 }
 
-// ============================================================================
-// TYPE DEFINITIONS
-// ============================================================================
-
-/**
- * Configuration options for Cortensor provider
- */
-export interface CortensorConfig {
-  /** API key for authentication (optional, defaults to env var) */
-  apiKey?: string;
-  /** Base URL for the API (optional, defaults to env var) */
-  baseURL?: string;
-  /** Request timeout in seconds */
-  timeout?: number;
-  /** Session timeout in seconds */
-  sessionTimeout?: number;
-}
-
-/**
- * Web search result structure
- */
-export interface WebSearchResult {
-  title: string;
-  url: string;
-  snippet: string;
-  publishedDate?: string;
-}
-
-/**
- * Web search request structure
- */
-export interface WebSearchRequest {
-  query: string;
-  maxResults: number;
-}
-
-/**
- * Web search configuration options
- */
-export interface WebSearchConfig {
-  mode: 'prompt' | 'force' | 'disable';
-  provider?: WebSearchCallback;
-  maxResults?: number;
-}
-
-/**
- * Model configuration options for Cortensor models
- */
-export interface CortensorModelConfig {
-  /** Required session ID for the conversation */
-  sessionId: number;
-  /** Model name identifier */
-  modelName?: string;
-  /** Sampling temperature (0.0 to 2.0) */
-  temperature?: number;
-  /** Maximum tokens to generate */
-  maxTokens?: number;
-  /** Top-p sampling parameter */
-  topP?: number;
-  /** Top-k sampling parameter */
-  topK?: number;
-  /** Presence penalty (-2.0 to 2.0) */
-  presencePenalty?: number;
-  /** Frequency penalty (-2.0 to 2.0) */
-  frequencyPenalty?: number;
-  /** Whether to stream responses */
-  stream?: boolean;
-  /** Request timeout in seconds */
-  timeout?: number;
-  /** Prompt type identifier */
-  promptType?: number;
-  /** Custom prompt template */
-  promptTemplate?: string;
-  /** Web search configuration */
-  webSearch?: WebSearchConfig;
-}
 
 // ============================================================================
 // EXPORTS
@@ -388,15 +292,7 @@ export interface CortensorModelConfig {
 // Re-export transformer functions for convenience
 export { transformToCortensor, transformToOpenAI } from './transformers';
 
-// Re-export types for external use
-export type {
-  OpenAIRequest,
-  CortensorRequest,
-  OpenAIResponse,
-  CortensorResponse,
-  CortensorChoice,
-  CortensorUsage
-} from './types';
+
 
 // ============================================================================
 // CUSTOM PROVIDER FACTORY

@@ -2,18 +2,10 @@
  * Simple Tavily Web Search Provider
  */
 
-import type { WebSearchResult, WebSearchCallback } from '../provider.js';
-import { tavily } from '@tavily/core';
+// import type { WebSearchResult, WebSearchCallback } from '../provider.js';
+import type { WebSearchCallback, WebSearchResult } from '@/types';
+import { tavily, type TavilySearchOptions } from '@tavily/core';
 
-/**
- * Simple options for Tavily search
- */
-export interface TavilySearchOptions {
-  maxResults?: number;
-  apiKey?: string;
-  includeImages?: boolean;
-  searchDepth?: 'basic' | 'advanced';
-}
 
 /**
  * Create a simple Tavily search function
