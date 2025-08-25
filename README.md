@@ -1,6 +1,6 @@
 # Cortensor OpenAI Provider
 
-**Version: 0.2.5** | 🚧 **EXPERIMENTAL - ACTIVELY IN DEVELOPMENT** 🚧
+ 🚧 **EXPERIMENTAL - ACTIVELY IN DEVELOPMENT** 🚧
 
 OpenAI-compatible provider for Cortensor AI models, designed to work seamlessly with Vercel AI SDK and popular agent frameworks.
 
