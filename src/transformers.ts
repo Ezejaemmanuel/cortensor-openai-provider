@@ -21,6 +21,7 @@ import type {
   CortensorTransformResult
 } from './types';
 import { WebSearchError, ConfigurationError } from './provider';
+import { DEFAULT_MODEL_CONFIG } from './constants';
 
 // ============================================================================
 // WEB SEARCH FUNCTIONALITY
@@ -398,17 +399,17 @@ export async function transformToCortensor(
     const cortensorRequest: CortensorRequest = {
       session_id: sessionId,
       prompt: finalPrompt,
-      prompt_type: modelConfig?.promptType ?? 1,
-      prompt_template: modelConfig?.promptTemplate ?? '',
-      stream: modelConfig?.stream ?? false,
-      timeout: modelConfig?.timeout ?? 60,
+      prompt_type: modelConfig?.promptType ?? DEFAULT_MODEL_CONFIG.promptType,
+      prompt_template: modelConfig?.promptTemplate ?? DEFAULT_MODEL_CONFIG.promptTemplate,
+      stream: modelConfig?.stream ?? DEFAULT_MODEL_CONFIG.stream,
+      timeout: modelConfig?.timeout ?? DEFAULT_MODEL_CONFIG.timeout,
       client_reference: `user-request-${Date.now()}`,
-      max_tokens: modelConfig?.maxTokens ?? 3000,
-      temperature: modelConfig?.temperature ?? openAIRequest.temperature ?? 0.7,
-      top_p: modelConfig?.topP ?? 0.95,
-      top_k: modelConfig?.topK ?? 40,
-      presence_penalty: modelConfig?.presencePenalty ?? 0,
-      frequency_penalty: modelConfig?.frequencyPenalty ?? 0
+      max_tokens: modelConfig?.maxTokens ?? DEFAULT_MODEL_CONFIG.maxTokens,
+      temperature: modelConfig?.temperature ?? openAIRequest.temperature ?? DEFAULT_MODEL_CONFIG.temperature,
+      top_p: modelConfig?.topP ?? DEFAULT_MODEL_CONFIG.topP,
+      top_k: modelConfig?.topK ?? DEFAULT_MODEL_CONFIG.topK,
+      presence_penalty: modelConfig?.presencePenalty ?? DEFAULT_MODEL_CONFIG.presencePenalty,
+      frequency_penalty: modelConfig?.frequencyPenalty ?? DEFAULT_MODEL_CONFIG.frequencyPenalty
     };
 
     const result: CortensorTransformResult = {

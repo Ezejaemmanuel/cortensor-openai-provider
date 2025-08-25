@@ -9,6 +9,7 @@
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { transformToCortensor, transformToOpenAI } from './transformers';
 import type { CortensorConfig, CortensorModelConfig, WebSearchResult } from './types';
+import { DEFAULT_MODEL_CONFIG } from './constants';
 
 // ============================================================================
 // ENVIRONMENT CONFIGURATION
@@ -70,16 +71,13 @@ function validateCortensorConfig(apiKey?: string, baseUrl?: string): void {
 }
 
 
-// Global configuration store for model instances
-const modelConfigurations = new Map<string, CortensorModelConfig>();
-
 /**
  * Extracts model configuration and session ID from request body
  * @param requestBody - The request body as string
- * @returns Object containing sessionId and modelConfig
- * @throws Error if session ID is not found
+ * @returns Object containing sessionId and modelConfig with defaults applied
+ * @throws Error if configuration cannot be extracted
  */
-function extractModelConfiguration(requestBody: string): {
+export function extractModelConfiguration(requestBody: string): {
   sessionId: number;
   modelConfig?: CortensorModelConfig;
 } {
@@ -91,21 +89,39 @@ function extractModelConfiguration(requestBody: string): {
       throw new Error('Model name must be a string');
     }
 
-    // Extract session ID from model name
-    const sessionMatch = modelName.match(/-session-(\d+)$/);
-    if (!sessionMatch || !sessionMatch[1]) {
-      throw new Error('Session ID not found in model name. Model name should end with "-session-{sessionId}"');
+    // Extract configuration from model name (format: modelname-config-base64encodedconfig)
+    const configMatch = modelName.match(/-config-([A-Za-z0-9+/=]+)$/);
+    if (!configMatch || !configMatch[1]) {
+      throw new Error('Configuration not found in model name. Model name should end with "-config-{base64EncodedConfig}"');
     }
 
-    const sessionId = parseInt(sessionMatch[1]);
-    const modelConfig = modelConfigurations.get(modelName);
+    // Decode the base64 encoded configuration
+    const configBase64 = configMatch[1];
+    const configJson = Buffer.from(configBase64, 'base64').toString('utf-8');
+    const decodedConfig = JSON.parse(configJson) as Partial<CortensorModelConfig>;
 
-    if (!modelConfig) {
-      throw new Error(`Model configuration not found for model: ${modelName}`);
+    if (!decodedConfig.sessionId) {
+      throw new Error('Session ID not found in model configuration');
     }
+
+    // Merge decoded configuration with defaults
+    const modelConfig: CortensorModelConfig = {
+      sessionId: decodedConfig.sessionId,
+      modelName: decodedConfig.modelName ?? DEFAULT_MODEL_CONFIG.modelName,
+      temperature: decodedConfig.temperature ?? DEFAULT_MODEL_CONFIG.temperature,
+      maxTokens: decodedConfig.maxTokens ?? DEFAULT_MODEL_CONFIG.maxTokens,
+      topP: decodedConfig.topP ?? DEFAULT_MODEL_CONFIG.topP,
+      topK: decodedConfig.topK ?? DEFAULT_MODEL_CONFIG.topK,
+      presencePenalty: decodedConfig.presencePenalty ?? DEFAULT_MODEL_CONFIG.presencePenalty,
+      frequencyPenalty: decodedConfig.frequencyPenalty ?? DEFAULT_MODEL_CONFIG.frequencyPenalty,
+      stream: decodedConfig.stream ?? DEFAULT_MODEL_CONFIG.stream,
+      timeout: decodedConfig.timeout ?? DEFAULT_MODEL_CONFIG.timeout,
+      promptType: decodedConfig.promptType ?? DEFAULT_MODEL_CONFIG.promptType,
+      promptTemplate: decodedConfig.promptTemplate ?? DEFAULT_MODEL_CONFIG.promptTemplate
+    };
 
     return {
-      sessionId,
+      sessionId: modelConfig.sessionId,
       modelConfig
     };
   } catch (error) {
@@ -232,53 +248,41 @@ export const cortensorProvider = createOpenAICompatible({
 
 /**
  * Creates a configurable Cortensor model with custom parameters
- * @param config - Configuration options for the model
+ * @param config - Configuration options for the model (optional, uses defaults if not provided)
  * @returns Cortensor model instance with applied configuration
  */
-export function cortensorModel(config: CortensorModelConfig): ReturnType<typeof cortensorProvider> {
-  // Extract configuration with defaults
-  const {
-    sessionId,
-    modelName = 'cortensor-chat',
-    temperature = 0.7,
-    maxTokens = 3000,
-    topP = 0.95,
-    topK = 40,
-    presencePenalty = 0,
-    frequencyPenalty = 0,
-    stream = false,
-    timeout = 60,
-    promptType = 1,
-    promptTemplate = ''
-  } = config;
-
+export function cortensorModel(config: Partial<CortensorModelConfig> = {}): ReturnType<typeof cortensorProvider> {
   // Validate required session ID
-  if (!sessionId) {
+  if (!config.sessionId) {
     throw new Error('Session ID is required for Cortensor model creation');
   }
 
-  // Create a unique model identifier that includes session ID
-  const uniqueModelName = `${modelName}-session-${sessionId}`;
-
-  // Store the complete configuration globally
-  const configToStore = {
-    sessionId,
-    modelName,
-    temperature,
-    maxTokens,
-    topP,
-    topK,
-    presencePenalty,
-    frequencyPenalty,
-    stream,
-    timeout,
-    promptType,
-    promptTemplate
+  // Only include explicitly provided configuration values
+  const configToEncode: Partial<CortensorModelConfig> = {
+    sessionId: config.sessionId
   };
 
-  modelConfigurations.set(uniqueModelName, configToStore);
+  // Add only the properties that were explicitly provided
+  if (config.modelName !== undefined) configToEncode.modelName = config.modelName;
+  if (config.temperature !== undefined) configToEncode.temperature = config.temperature;
+  if (config.maxTokens !== undefined) configToEncode.maxTokens = config.maxTokens;
+  if (config.topP !== undefined) configToEncode.topP = config.topP;
+  if (config.topK !== undefined) configToEncode.topK = config.topK;
+  if (config.presencePenalty !== undefined) configToEncode.presencePenalty = config.presencePenalty;
+  if (config.frequencyPenalty !== undefined) configToEncode.frequencyPenalty = config.frequencyPenalty;
+  if (config.stream !== undefined) configToEncode.stream = config.stream;
+  if (config.timeout !== undefined) configToEncode.timeout = config.timeout;
+  if (config.promptType !== undefined) configToEncode.promptType = config.promptType;
+  if (config.promptTemplate !== undefined) configToEncode.promptTemplate = config.promptTemplate;
+  if (config.webSearch !== undefined) configToEncode.webSearch = config.webSearch;
 
-  // Create model instance with unique name that contains session ID
+  // Encode configuration as base64 JSON and embed in model name
+  const configJson = JSON.stringify(configToEncode);
+  const configBase64 = Buffer.from(configJson, 'utf-8').toString('base64');
+  const modelName = config.modelName || DEFAULT_MODEL_CONFIG.modelName;
+  const uniqueModelName = `${modelName}-config-${configBase64}`;
+
+  // Create model instance with unique name that contains encoded configuration
   const modelInstance = cortensorProvider(uniqueModelName);
 
   return modelInstance;
@@ -298,31 +302,8 @@ export { transformToCortensor, transformToOpenAI } from './transformers';
 // CUSTOM PROVIDER FACTORY
 // ============================================================================
 
-/**
- * Clears stored model configurations (useful for cleanup)
- * @param sessionId - Optional session ID to clear specific session configs
- */
-export function clearModelConfigurations(sessionId?: number) {
-  if (sessionId) {
-    // Clear configurations for specific session
-    for (const [modelName, config] of modelConfigurations.entries()) {
-      if (config.sessionId === sessionId) {
-        modelConfigurations.delete(modelName);
-      }
-    }
-  } else {
-    // Clear all configurations
-    modelConfigurations.clear();
-  }
-}
-
-/**
- * Gets the current number of stored model configurations
- * @returns Number of stored configurations
- */
-export function getStoredConfigurationsCount(): number {
-  return modelConfigurations.size;
-}
+// Note: Model configurations are now embedded directly in model names as base64 JSON,
+// so no global state management or cleanup functions are needed.
 
 /**
  * Creates a custom Cortensor provider with specific configuration

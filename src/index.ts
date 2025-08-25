@@ -34,9 +34,13 @@ export {
   cortensorProvider,
   cortensorModel,
   createCortensorProvider,
-  clearModelConfigurations,
-  getStoredConfigurationsCount,
+  extractModelConfiguration,
 } from './provider';
+
+// Constants exports
+export {
+  DEFAULT_MODEL_CONFIG,
+} from './constants';
 
 
 // All other type exports from types
