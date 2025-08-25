@@ -1,6 +1,6 @@
 {
   "name": "cortensor-openai-provider",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "🚧 EXPERIMENTAL: OpenAI-compatible Cortensor provider for Vercel AI SDK - Actively in development",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -20,7 +20,8 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "type-check": "tsc --noEmit",
-    "clean": "rimraf dist"
+    "clean": "rimraf dist",
+    "publish": "pnpm clean && pnpm build  && pnpm publish"
   },
   "keywords": [
     "ai",
