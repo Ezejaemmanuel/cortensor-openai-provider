@@ -122,7 +122,7 @@ export interface OpenAIUsage {
 }
 
 /**
- * Response format expected by OpenAI/Vercel AI SDK
+ * Response format expected by OpenAI/Vercel AI SDk
  */
 export interface OpenAIResponse {
   id: string;
