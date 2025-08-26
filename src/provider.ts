@@ -8,8 +8,12 @@
 
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { transformToCortensor, transformToOpenAI } from './transformers';
-import type { CortensorConfig, CortensorModelConfig, WebSearchResult } from './types';
+import type { CortensorConfig, CortensorModelConfig, WebSearchResult, WebSearchCallback } from './types';
 import { DEFAULT_MODEL_CONFIG } from './constants';
+
+// Global registry for web search providers to handle function serialization
+const webSearchProviderRegistry = new Map<string, WebSearchCallback>();
+let providerIdCounter = 0;
 
 // ============================================================================
 // ENVIRONMENT CONFIGURATION
@@ -178,11 +182,30 @@ export function extractModelConfiguration(requestBody: string): {
 
     // Copy web search configuration if present
     if (decodedConfig.webSearch) {
-      modelConfig.webSearch = decodedConfig.webSearch;
+      modelConfig.webSearch = { ...decodedConfig.webSearch };
+      
+      // Restore web search provider function from registry if it's a reference
+      if (modelConfig.webSearch.provider && typeof modelConfig.webSearch.provider === 'string' && (modelConfig.webSearch.provider as string).startsWith('provider_')) {
+        const providerId = modelConfig.webSearch.provider as string;
+        const providerFunction = webSearchProviderRegistry.get(providerId);
+        
+        if (providerFunction) {
+          modelConfig.webSearch.provider = providerFunction;
+          console.log('🔧 [MODEL-CONFIG] Web search provider function restored from registry:', {
+            providerId: providerId,
+            providerType: typeof providerFunction
+          });
+        } else {
+          console.warn('🔧 [MODEL-CONFIG] Web search provider function not found in registry:', providerId);
+          delete modelConfig.webSearch.provider;
+        }
+      }
+      
       console.log('🔧 [MODEL-CONFIG] Web search configuration included:', {
         mode: modelConfig.webSearch.mode,
         maxResults: modelConfig.webSearch.maxResults,
-        hasProvider: !!modelConfig.webSearch.provider
+        hasProvider: !!modelConfig.webSearch.provider,
+        providerType: typeof modelConfig.webSearch.provider
       });
     }
 
@@ -454,7 +477,25 @@ export function cortensorModel(config: { sessionId: number } & Partial<Omit<Cort
   if (config.timeout !== undefined) configToEncode.timeout = config.timeout;
   if (config.promptType !== undefined) configToEncode.promptType = config.promptType;
   if (config.promptTemplate !== undefined) configToEncode.promptTemplate = config.promptTemplate;
-  if (config.webSearch !== undefined) configToEncode.webSearch = config.webSearch;
+  
+  // Handle web search configuration with provider function serialization
+  if (config.webSearch !== undefined) {
+    const webSearchConfig = { ...config.webSearch };
+    
+    // If there's a provider function, store it in the registry and use a reference
+    if (webSearchConfig.provider && typeof webSearchConfig.provider === 'function') {
+      const providerId = `provider_${providerIdCounter++}_${Date.now()}`;
+      webSearchProviderRegistry.set(providerId, webSearchConfig.provider);
+      
+      // Replace the function with a reference
+      configToEncode.webSearch = {
+        ...webSearchConfig,
+        provider: providerId as any // Store the ID instead of the function
+      };
+    } else {
+      configToEncode.webSearch = webSearchConfig;
+    }
+  }
 
   // Encode configuration as base64 JSON and embed in model name
   const configJson = JSON.stringify(configToEncode);
