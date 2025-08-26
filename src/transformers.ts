@@ -21,7 +21,7 @@ import type {
   CortensorTransformResult
 } from './types';
 import { WebSearchError, ConfigurationError } from './provider';
-import { DEFAULT_MODEL_CONFIG } from './constants';
+import { DEFAULT_MODEL_CONFIG, MAX_INPUT_TOKEN } from './constants';
 
 // ============================================================================
 // WEB SEARCH FUNCTIONALITY
@@ -232,8 +232,23 @@ export async function generateSearchQuery(
       firstChoiceText: data.choices?.[0]?.text?.substring(0, 100)
     });
 
-    const searchQuery = data.choices?.[0]?.text?.trim() || userPrompt;
-    console.log('🔍 [SEARCH-QUERY] Generated search query:', {
+    let searchQuery = data.choices?.[0]?.text?.trim() || userPrompt;
+    
+    // Strip stop tokens and other unwanted tokens from the search query
+    searchQuery = searchQuery
+      .replace(/<\/s>/g, '')  // Remove </s> stop tokens
+      .replace(/<s>/g, '')    // Remove <s> start tokens
+      .replace(/\[INST\]/g, '') // Remove instruction tokens
+      .replace(/\[\/INST\]/g, '') // Remove end instruction tokens
+      .replace(/^["']|["']$/g, '') // Remove surrounding quotes
+      .trim();
+    
+    // Fallback to user prompt if query becomes empty after cleaning
+    if (!searchQuery) {
+      searchQuery = userPrompt;
+    }
+    
+    console.log('🔍 [SEARCH-QUERY] Generated and cleaned search query:', {
       query: searchQuery,
       usedFallback: searchQuery === userPrompt
     });
@@ -283,6 +298,79 @@ export function formatSearchResults(
 }
 
 /**
+ * Estimates token count for a given text (rough approximation: 1 token ≈ 4 characters)
+ * @param text - The text to estimate tokens for
+ * @returns Estimated token count
+ */
+function estimateTokenCount(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+/**
+ * Truncates search results to fit within token limits
+ * @param searchResults - Array of search results
+ * @param maxTokens - Maximum tokens allowed for search results
+ * @returns Truncated search results
+ */
+function truncateSearchResults(searchResults: WebSearchResult[], maxTokens: number): WebSearchResult[] {
+  const truncatedResults: WebSearchResult[] = [];
+  let currentTokens = 0;
+  
+  console.log('🔍 [SEARCH-RESULTS] Processing search results for truncation:', {
+    totalResults: searchResults.length,
+    maxTokens,
+    results: searchResults.map((result, index) => ({
+      index: index + 1,
+      title: result.title,
+      url: result.url,
+      snippet: result.snippet?.substring(0, 100) + (result.snippet && result.snippet.length > 100 ? '...' : ''),
+      estimatedTokens: estimateTokenCount(`[${index + 1}] [${result.title}](${result.url})\n${result.snippet || ''}`)
+    }))
+  });
+  
+  for (const result of searchResults) {
+    const resultText = `[${truncatedResults.length + 1}] [${result.title}](${result.url})\n${result.snippet || ''}`;
+    const resultTokens = estimateTokenCount(resultText);
+    
+    if (currentTokens + resultTokens <= maxTokens) {
+      truncatedResults.push(result);
+      currentTokens += resultTokens;
+      console.log('🔍 [SEARCH-RESULTS] Including result:', {
+        index: truncatedResults.length,
+        title: result.title,
+        url: result.url,
+        snippet: result.snippet?.substring(0, 150) + (result.snippet && result.snippet.length > 150 ? '...' : ''),
+        tokens: resultTokens,
+        totalTokens: currentTokens
+      });
+    } else {
+      console.log('🔍 [SEARCH-PROMPT] Truncating search results due to token limit:', {
+        includedResults: truncatedResults.length,
+        totalResults: searchResults.length,
+        currentTokens,
+        maxTokens,
+        excludedResult: {
+          title: result.title,
+          url: result.url,
+          snippet: result.snippet?.substring(0, 100) + (result.snippet && result.snippet.length > 100 ? '...' : ''),
+          wouldAddTokens: resultTokens
+        }
+      });
+      break;
+    }
+  }
+  
+  console.log('🔍 [SEARCH-RESULTS] Final truncation summary:', {
+    includedResults: truncatedResults.length,
+    totalResults: searchResults.length,
+    finalTokenCount: currentTokens,
+    maxTokens
+  });
+  
+  return truncatedResults;
+}
+
+/**
  * Builds a prompt enhanced with search results
  * @param messages - Original conversation messages
  * @param searchResults - Web search results
@@ -304,14 +392,41 @@ export function buildPromptWithSearchResults(
   const conversationMessages = messages.filter(msg => msg.role !== 'system');
 
   const originalPrompt = buildFormattedPrompt(systemMessages, conversationMessages);
-  const formattedResults = formatSearchResults(searchResults);
-
+  const originalTokens = estimateTokenCount(originalPrompt);
+  
+  // Target max tokens: ~3000, reserve space for original prompt and search formatting
+  const maxTotalTokens = MAX_INPUT_TOKEN;
+  const searchFormattingTokens = 100; // Estimated tokens for search headers and instructions
+  const maxSearchResultTokens = maxTotalTokens - originalTokens - searchFormattingTokens;
+  
+  console.log('🔍 [SEARCH-PROMPT] Token analysis:', {
+    originalTokens,
+    maxTotalTokens,
+    maxSearchResultTokens,
+    searchFormattingTokens
+  });
+  
+  // Truncate search results if necessary
+  let finalSearchResults = searchResults;
+  if (maxSearchResultTokens > 0) {
+    finalSearchResults = truncateSearchResults(searchResults, maxSearchResultTokens);
+  } else {
+    console.warn('🔍 [SEARCH-PROMPT] Original prompt too long, excluding all search results');
+    finalSearchResults = [];
+  }
+  
+  const formattedResults = formatSearchResults(finalSearchResults);
   const finalPrompt = `${originalPrompt}\n\n--- WEB SEARCH RESULTS ---\nSearch Query: "${searchQuery}"\n\n${formattedResults}\n\nPlease use the above search results to provide an accurate, up-to-date response. If the search results are relevant, incorporate the information into your answer. If they're not relevant, you can ignore them and provide a general response.`;
+  
+  const finalTokens = estimateTokenCount(finalPrompt);
   
   console.log('🔍 [SEARCH-PROMPT] Built final prompt:', {
     promptLength: finalPrompt.length,
+    estimatedTokens: finalTokens,
     includesSearchResults: formattedResults.length > 0,
-    originalPromptLength: originalPrompt.length
+    originalPromptLength: originalPrompt.length,
+    includedSearchResults: finalSearchResults.length,
+    totalSearchResults: searchResults.length
   });
   
   return finalPrompt;

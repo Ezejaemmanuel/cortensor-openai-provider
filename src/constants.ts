@@ -21,7 +21,7 @@ export const DEFAULT_MODEL_CONFIG = {
   promptType: 1,
   promptTemplate: ''
 } as const;
-
+export const MAX_INPUT_TOKEN = 3000;
 // Log when constants are loaded
 console.log('⚙️ [CONSTANTS] Default model configuration loaded:', {
   modelName: DEFAULT_MODEL_CONFIG.modelName,
