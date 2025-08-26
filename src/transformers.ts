@@ -197,7 +197,7 @@ export async function generateSearchQuery(
       temperature: 0.1
     });
 
-    const response = await fetch(`${cortensorConfig.baseUrl}/chat/completions`, {
+    const response = await fetch(`${cortensorConfig.baseUrl}/api/v1/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
