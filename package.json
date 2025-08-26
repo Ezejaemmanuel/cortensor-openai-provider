@@ -1,6 +1,6 @@
 {
   "name": "cortensor-openai-provider",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "🚧 EXPERIMENTAL: OpenAI-compatible Cortensor provider for Vercel AI SDK - Actively in development",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
