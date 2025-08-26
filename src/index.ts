@@ -29,6 +29,12 @@
  * ```
  */
 
+// Log module initialization
+console.log('📦 [CORTENSOR-MODULE] Cortensor AI Provider module loading:', {
+  timestamp: new Date().toISOString(),
+  version: process.env.npm_package_version || 'unknown'
+});
+
 // Main provider exports
 export {
   cortensorProvider,
@@ -61,3 +67,12 @@ export {
   formatSearchResults,
   buildPromptWithSearchResults,
 } from './transformers';
+
+// Log successful module loading
+console.log('📦 [CORTENSOR-MODULE] All exports loaded successfully:', {
+  providers: ['cortensorProvider', 'cortensorModel', 'createCortensorProvider'],
+  transformers: ['transformToCortensor', 'transformToOpenAI'],
+  utilities: ['extractSearchDirectives', 'generateSearchQuery', 'formatSearchResults'],
+  webSearch: ['createTavilySearch'],
+  timestamp: new Date().toISOString()
+});
