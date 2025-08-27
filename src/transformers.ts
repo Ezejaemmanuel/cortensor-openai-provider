@@ -37,16 +37,10 @@ export function extractSearchDirectives(
   messages: CoreMessage[],
   webSearchConfig?: CortensorModelConfig['webSearch']
 ): SearchDirectives {
-  console.log('🔍 [SEARCH] Extracting search directives from messages:', {
-    messageCount: messages.length,
-    webSearchConfig: webSearchConfig ? {
-      mode: webSearchConfig.mode,
-      maxResults: webSearchConfig.maxResults
-    } : null
-  });
+
 
   if (!webSearchConfig) {
-    console.log('🔍 [SEARCH] No web search config provided, skipping search');
+
     return {
       shouldSearch: false,
       cleanedMessages: messages,
@@ -54,7 +48,7 @@ export function extractSearchDirectives(
   }
 
   if (messages.length === 0) {
-    console.log('🔍 [SEARCH] No messages provided, skipping search');
+
     return {
       shouldSearch: false,
       cleanedMessages: messages,
@@ -63,7 +57,7 @@ export function extractSearchDirectives(
 
   const lastMessage = messages[messages.length - 1];
   if (!lastMessage) {
-    console.log('🔍 [SEARCH] Last message is undefined, skipping search');
+
     return {
       shouldSearch: false,
       cleanedMessages: messages,
@@ -71,11 +65,7 @@ export function extractSearchDirectives(
   }
 
   const originalContent = extractMessageContent(lastMessage);
-  console.log('🔍 [SEARCH] Analyzing last message content:', {
-    role: lastMessage.role,
-    contentLength: originalContent.length,
-    contentPreview: originalContent.substring(0, 100) + (originalContent.length > 100 ? '...' : '')
-  });
+
 
   let cleanedContent = originalContent;
   let shouldSearch = false;
@@ -85,37 +75,29 @@ export function extractSearchDirectives(
   // Check for [**no-search**] marker
   const hasNoSearchMarker = /\[\*\*no-search\*\*\]/i.test(originalContent);
 
-  console.log('🔍 [SEARCH] Search markers detected:', {
-    hasSearchMarker,
-    hasNoSearchMarker,
-    searchMode: webSearchConfig.mode
-  });
+
 
   // Remove markers from content
   cleanedContent = cleanedContent.replace(/\[\*\*search\*\*\]/gi, '').replace(/\[\*\*no-search\*\*\]/gi, '').trim();
-  console.log('🔍 [SEARCH] Content after marker removal:', {
-    originalLength: originalContent.length,
-    cleanedLength: cleanedContent.length,
-    markersRemoved: originalContent !== cleanedContent
-  });
+
 
   // Determine if search should be performed based on mode and markers
   if (webSearchConfig.mode === 'force') {
     shouldSearch = true;
-    console.log('🔍 [SEARCH] Force mode enabled - search will be performed');
+
   } else if (webSearchConfig.mode === 'disable') {
     shouldSearch = false;
-    console.log('🔍 [SEARCH] Search disabled by configuration');
+
   } else { // prompt-based mode
     if (hasNoSearchMarker) {
       shouldSearch = false;
-      console.log('🔍 [SEARCH] No-search marker found - search disabled');
+
     } else if (hasSearchMarker) {
       shouldSearch = true;
-      console.log('🔍 [SEARCH] Search marker found - search enabled');
+      
     } else {
       shouldSearch = false; // Default to no search unless explicitly requested
-      console.log('🔍 [SEARCH] No explicit markers - defaulting to no search');
+      
     }
   }
 
@@ -127,11 +109,7 @@ export function extractSearchDirectives(
     }
   ];
 
-  console.log('🔍 [SEARCH] Final search decision:', {
-    shouldSearch,
-    cleanedMessagesCount: cleanedMessages.length,
-    searchMode: webSearchConfig.mode
-  });
+
 
   return {
     shouldSearch,
@@ -151,51 +129,34 @@ export async function generateSearchQuery(
   messages: CoreMessage[],
   cortensorConfig: { apiKey: string; baseUrl: string; sessionId: number }
 ): Promise<string> {
-  console.log('🔍 [SEARCH-QUERY] Starting search query generation:', {
-    messageCount: messages.length,
-    sessionId: cortensorConfig.sessionId,
-    hasApiKey: !!cortensorConfig.apiKey,
-    baseUrl: cortensorConfig.baseUrl
-  });
+
 
   if (messages.length === 0) {
-    console.log('🔍 [SEARCH-QUERY] No messages provided, using default query');
+
     return 'general information';
   }
 
   const lastMessage = messages[messages.length - 1];
   if (!lastMessage) {
-    console.log('🔍 [SEARCH-QUERY] Last message is undefined, using default query');
+
     return 'general information';
   }
 
   const userPrompt = extractMessageContent(lastMessage);
-  console.log('🔍 [SEARCH-QUERY] Extracted user prompt:', {
-    role: lastMessage.role,
-    promptLength: userPrompt.length,
-    promptPreview: userPrompt.substring(0, 150) + (userPrompt.length > 150 ? '...' : '')
-  });
+
 
   // Create a prompt to ask the model to generate a search query
   const searchQueryPrompt = `Convert the following user prompt into a concise web search query (maximum 10 words). Only return the search query, nothing else:\n\nUser prompt: ${userPrompt}`;
-  console.log('🔍 [SEARCH-QUERY] Generated search query prompt for API call');
+
 
   try {
     // Validate configuration
     if (!cortensorConfig.apiKey || !cortensorConfig.baseUrl) {
-      console.error('🔍 [SEARCH-QUERY] Missing API configuration:', {
-        hasApiKey: !!cortensorConfig.apiKey,
-        hasBaseUrl: !!cortensorConfig.baseUrl
-      });
+
       throw new ConfigurationError('API key and base URL are required for search query generation');
     }
 
-    console.log('🔍 [SEARCH-QUERY] Making API call to generate search query:', {
-      url: `${cortensorConfig.baseUrl}/chat/completions`,
-      sessionId: cortensorConfig.sessionId,
-      maxTokens: 50,
-      temperature: 0.1
-    });
+
 
     const response = await fetch(`${cortensorConfig.baseUrl}/api/v1/completions`, {
       method: 'POST',
@@ -211,26 +172,15 @@ export async function generateSearchQuery(
       })
     });
 
-    console.log('🔍 [SEARCH-QUERY] API response received:', {
-      status: response.status,
-      statusText: response.statusText,
-      ok: response.ok
-    });
+
 
     if (!response.ok) {
-      console.error('🔍 [SEARCH-QUERY] API request failed:', {
-        status: response.status,
-        statusText: response.statusText
-      });
+
       throw new WebSearchError(`Failed to generate search query: API request failed with status ${response.status}`);
     }
 
     const data = await response.json();
-    console.log('🔍 [SEARCH-QUERY] API response data:', {
-      hasChoices: !!data.choices,
-      choicesLength: data.choices?.length || 0,
-      firstChoiceText: data.choices?.[0]?.text?.substring(0, 100)
-    });
+
 
     let searchQuery = data.choices?.[0]?.text?.trim() || userPrompt;
     
@@ -248,10 +198,7 @@ export async function generateSearchQuery(
       searchQuery = userPrompt;
     }
     
-    console.log('🔍 [SEARCH-QUERY] Generated and cleaned search query:', {
-      query: searchQuery,
-      usedFallback: searchQuery === userPrompt
-    });
+
 
     return searchQuery;
   } catch (error) {
@@ -271,29 +218,23 @@ export async function generateSearchQuery(
 export function formatSearchResults(
   results: WebSearchResult[]
 ): string {
-  console.log('🔍 [SEARCH-FORMAT] Formatting search results:', {
-    resultCount: results?.length || 0,
-    hasResults: !!(results && results.length > 0)
-  });
+
 
   if (results.length === 0) {
-    console.log('🔍 [SEARCH-FORMAT] No search results to format');
+
     return '';
   }
 
   // Create the sources section
   const sources = results
     .map((result, index) => {
-      console.log(`🔍 [SEARCH-FORMAT] Formatting result ${index + 1}:`, {
-        title: result.title?.substring(0, 50) + (result.title?.length > 50 ? '...' : ''),
-        url: result.url
-      });
+
       return `[${index + 1}] [${result.title}](${result.url})`;
     })
     .join('\n');
 
   const formattedResults = `\n\n**Sources:**\n${sources}`;
-  console.log('🔍 [SEARCH-FORMAT] Formatted results length:', formattedResults.length);
+
   return formattedResults;
 }
 
@@ -316,17 +257,7 @@ function truncateSearchResults(searchResults: WebSearchResult[], maxTokens: numb
   const truncatedResults: WebSearchResult[] = [];
   let currentTokens = 0;
   
-  console.log('🔍 [SEARCH-RESULTS] Processing search results for truncation:', {
-    totalResults: searchResults.length,
-    maxTokens,
-    results: searchResults.map((result, index) => ({
-      index: index + 1,
-      title: result.title,
-      url: result.url,
-      snippet: result.snippet?.substring(0, 100) + (result.snippet && result.snippet.length > 100 ? '...' : ''),
-      estimatedTokens: estimateTokenCount(`[${index + 1}] [${result.title}](${result.url})\n${result.snippet || ''}`)
-    }))
-  });
+
   
   for (const result of searchResults) {
     const resultText = `[${truncatedResults.length + 1}] [${result.title}](${result.url})\n${result.snippet || ''}`;
@@ -335,37 +266,14 @@ function truncateSearchResults(searchResults: WebSearchResult[], maxTokens: numb
     if (currentTokens + resultTokens <= maxTokens) {
       truncatedResults.push(result);
       currentTokens += resultTokens;
-      console.log('🔍 [SEARCH-RESULTS] Including result:', {
-        index: truncatedResults.length,
-        title: result.title,
-        url: result.url,
-        snippet: result.snippet?.substring(0, 150) + (result.snippet && result.snippet.length > 150 ? '...' : ''),
-        tokens: resultTokens,
-        totalTokens: currentTokens
-      });
+
     } else {
-      console.log('🔍 [SEARCH-PROMPT] Truncating search results due to token limit:', {
-        includedResults: truncatedResults.length,
-        totalResults: searchResults.length,
-        currentTokens,
-        maxTokens,
-        excludedResult: {
-          title: result.title,
-          url: result.url,
-          snippet: result.snippet?.substring(0, 100) + (result.snippet && result.snippet.length > 100 ? '...' : ''),
-          wouldAddTokens: resultTokens
-        }
-      });
+
       break;
     }
   }
   
-  console.log('🔍 [SEARCH-RESULTS] Final truncation summary:', {
-    includedResults: truncatedResults.length,
-    totalResults: searchResults.length,
-    finalTokenCount: currentTokens,
-    maxTokens
-  });
+
   
   return truncatedResults;
 }
@@ -382,11 +290,7 @@ export function buildPromptWithSearchResults(
   searchResults: WebSearchResult[],
   searchQuery: string
 ): string {
-  console.log('🔍 [SEARCH-PROMPT] Building prompt with search results:', {
-    messageCount: messages.length,
-    resultCount: searchResults.length,
-    searchQuery: searchQuery
-  });
+
 
   const systemMessages = messages.filter(msg => msg.role === 'system');
   const conversationMessages = messages.filter(msg => msg.role !== 'system');
@@ -399,19 +303,14 @@ export function buildPromptWithSearchResults(
   const searchFormattingTokens = 100; // Estimated tokens for search headers and instructions
   const maxSearchResultTokens = maxTotalTokens - originalTokens - searchFormattingTokens;
   
-  console.log('🔍 [SEARCH-PROMPT] Token analysis:', {
-    originalTokens,
-    maxTotalTokens,
-    maxSearchResultTokens,
-    searchFormattingTokens
-  });
+
   
   // Truncate search results if necessary
   let finalSearchResults = searchResults;
   if (maxSearchResultTokens > 0) {
     finalSearchResults = truncateSearchResults(searchResults, maxSearchResultTokens);
   } else {
-    console.warn('🔍 [SEARCH-PROMPT] Original prompt too long, excluding all search results');
+
     finalSearchResults = [];
   }
   
@@ -420,14 +319,7 @@ export function buildPromptWithSearchResults(
   
   const finalTokens = estimateTokenCount(finalPrompt);
   
-  console.log('🔍 [SEARCH-PROMPT] Built final prompt:', {
-    promptLength: finalPrompt.length,
-    estimatedTokens: finalTokens,
-    includesSearchResults: formattedResults.length > 0,
-    originalPromptLength: originalPrompt.length,
-    includedSearchResults: finalSearchResults.length,
-    totalSearchResults: searchResults.length
-  });
+
   
   return finalPrompt;
 }
@@ -527,37 +419,26 @@ async function handleWebSearch(
   provider: WebSearchCallback,
   maxResults: number
 ): Promise<WebSearchResult[]> {
-  console.log('🔍 [WEB-SEARCH] Starting web search:', {
-    query: query,
-    maxResults: maxResults,
-    providerType: typeof provider
-  });
+
 
   try {
     let results: WebSearchResult[];
     
     // Check if it's a provider object with search method or direct function
     if (typeof provider === 'function') {
-      console.log('🔍 [WEB-SEARCH] Using function-based provider');
+
       results = await provider(query, maxResults);
     } else {
-      console.log('🔍 [WEB-SEARCH] Using object-based provider with search method');
+
       results = await provider.search(query, maxResults);
     }
     
-    console.log('🔍 [WEB-SEARCH] Search completed successfully:', {
-      resultCount: results.length,
-      firstResultTitle: results[0]?.title?.substring(0, 50)
-    });
+
     
     return results;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown web search error';
-    console.error('🔍 [WEB-SEARCH] Search failed:', {
-      error: errorMessage,
-      query: query,
-      maxResults: maxResults
-    });
+
     throw new WebSearchError(`Web search failed: ${errorMessage}`);
   }
 }
@@ -574,29 +455,15 @@ export async function transformToCortensor(
   sessionId: number,
   modelConfig?: CortensorModelConfig
 ): Promise<CortensorTransformResult> {
-  console.log('🔄 [TRANSFORM] Starting OpenAI to Cortensor transformation:', {
-    sessionId: sessionId,
-    requestBodyLength: requestBody.length,
-    hasModelConfig: !!modelConfig,
-    webSearchEnabled: !!modelConfig?.webSearch
-  });
+
 
   try {
     const openAIRequest: OpenAIRequest = JSON.parse(requestBody);
-    console.log('🔄 [TRANSFORM] Parsed OpenAI request:', {
-      model: openAIRequest.model,
-      messageCount: openAIRequest.messages?.length || 0,
-      stream: openAIRequest.stream,
-      temperature: openAIRequest.temperature,
-      maxTokens: openAIRequest.max_tokens
-    });
+
 
     // Extract search directives and clean messages
     const searchDirectives = extractSearchDirectives(openAIRequest.messages, modelConfig?.webSearch);
-    console.log('🔄 [TRANSFORM] Search directives extracted:', {
-      shouldSearch: searchDirectives.shouldSearch,
-      cleanedMessageCount: searchDirectives.cleanedMessages.length
-    });
+
 
     let finalPrompt: string = '';
     let webSearchResults: WebSearchResult[] | undefined;
@@ -604,15 +471,11 @@ export async function transformToCortensor(
 
     // Handle web search if needed
     if (searchDirectives.shouldSearch && modelConfig?.webSearch?.provider) {
-      console.log('🔄 [TRANSFORM] Web search required, starting search process:', {
-        hasProvider: !!modelConfig.webSearch.provider,
-        maxResults: modelConfig.webSearch.maxResults ?? 5,
-        searchMode: modelConfig.webSearch.mode
-      });
+
 
       try {
         // Generate search query using main Cortensor configuration
-        console.log('🔄 [TRANSFORM] Generating search query with Cortensor config');
+
         searchQuery = await generateSearchQuery(
           searchDirectives.cleanedMessages,
           {
@@ -621,74 +484,56 @@ export async function transformToCortensor(
             sessionId: sessionId
           }
         );
-        console.log('🔄 [TRANSFORM] Search query generated:', { searchQuery });
+
 
         // Perform web search using flexible provider
-        console.log('🔄 [TRANSFORM] Performing web search with provider');
+
         webSearchResults = await handleWebSearch(
           searchQuery,
           modelConfig.webSearch.provider,
           modelConfig.webSearch.maxResults ?? 5
         );
-        console.log('🔄 [TRANSFORM] Web search completed:', {
-          resultCount: webSearchResults.length,
-          totalCharacters: webSearchResults.reduce((sum, r) => sum + (r.snippet?.length || 0), 0)
-        });
+
 
         // Build enhanced prompt with search results
-        console.log('🔄 [TRANSFORM] Building enhanced prompt with search results');
+
         finalPrompt = buildPromptWithSearchResults(
           searchDirectives.cleanedMessages,
           webSearchResults,
           searchQuery
         );
-        console.log('🔄 [TRANSFORM] Enhanced prompt built:', {
-          promptLength: finalPrompt.length,
-          includesSearchResults: finalPrompt.includes('Search Results:')
-        });
+
       } catch (error) {
         if (error instanceof ConfigurationError) {
-          console.error('🔄 [TRANSFORM] Configuration error during web search:', error.message);
+
           throw error;
         }
 
         // Log web search errors but continue with fallback
         if (error instanceof WebSearchError) {
-          console.warn('🔄 [TRANSFORM] Web search failed, continuing without search results:', {
-            error: error.message,
-            fallbackToBuildStandardPrompt: true
-          });
+
         } else {
-          console.warn('🔄 [TRANSFORM] Unexpected error during web search:', {
-            error: error instanceof Error ? error.message : String(error),
-            errorType: error?.constructor?.name,
-            fallbackToBuildStandardPrompt: true
-          });
+
         }
 
         // Fall through to standard prompt building
       }
     } else {
-      console.log('🔄 [TRANSFORM] Web search not required or no provider configured');
+
     }
 
     // Build standard prompt if no search or search failed
     if (!finalPrompt) {
-      console.log('🔄 [TRANSFORM] Building standard prompt (no web search)');
+
       const systemMessages = searchDirectives.cleanedMessages.filter(msg => msg.role === 'system');
       const conversationMessages = searchDirectives.cleanedMessages.filter(msg => msg.role !== 'system');
-      console.log('🔄 [TRANSFORM] Message breakdown for standard prompt:', {
-        systemMessageCount: systemMessages.length,
-        conversationMessageCount: conversationMessages.length
-      });
+
       finalPrompt = buildFormattedPrompt(systemMessages, conversationMessages);
-      console.log('🔄 [TRANSFORM] Standard prompt built:', {
-        promptLength: finalPrompt.length
-      });
+
     }
 
     // Create Cortensor request with model config or defaults
-    console.log('🔄 [TRANSFORM] Creating Cortensor request with configuration');
+
     const cortensorRequest: CortensorRequest = {
       session_id: sessionId,
       prompt: finalPrompt,
@@ -705,15 +550,7 @@ export async function transformToCortensor(
       frequency_penalty: modelConfig?.frequencyPenalty ?? DEFAULT_MODEL_CONFIG.frequencyPenalty
     };
 
-    console.log('🔄 [TRANSFORM] Cortensor request created:', {
-      sessionId: cortensorRequest.session_id,
-      promptLength: cortensorRequest.prompt.length,
-      promptType: cortensorRequest.prompt_type,
-      stream: cortensorRequest.stream,
-      maxTokens: cortensorRequest.max_tokens,
-      temperature: cortensorRequest.temperature,
-      clientReference: cortensorRequest.client_reference
-    });
+
 
     const result: CortensorTransformResult = {
       request: cortensorRequest
@@ -721,33 +558,19 @@ export async function transformToCortensor(
 
     if (webSearchResults) {
       result.webSearchResults = webSearchResults;
-      console.log('🔄 [TRANSFORM] Added web search results to transform result:', {
-        resultCount: webSearchResults.length
-      });
+
     }
 
     if (searchQuery) {
       result.searchQuery = searchQuery;
-      console.log('🔄 [TRANSFORM] Added search query to transform result:', {
-        searchQuery: searchQuery
-      });
+
     }
 
-    console.log('🔄 [TRANSFORM] Transformation completed successfully:', {
-      hasWebSearchResults: !!result.webSearchResults,
-      hasSearchQuery: !!result.searchQuery,
-      finalPromptLength: finalPrompt.length
-    });
+
 
     return result;
   } catch (error) {
-    console.error('🔄 [TRANSFORM] Critical error during transformation:', {
-      error: error instanceof Error ? error.message : String(error),
-      errorType: error?.constructor?.name,
-      stack: error instanceof Error ? error.stack : undefined,
-      sessionId: sessionId,
-      requestBodyLength: requestBody?.length || 0
-    });
+
     throw new Error('Failed to transform request to Cortensor format');
   }
 }
@@ -789,48 +612,26 @@ export async function transformToOpenAI(
   webSearchResults?: WebSearchResult[],
   searchQuery?: string
 ): Promise<Response> {
-  console.log('🔄 [RESPONSE-TRANSFORM] Starting Cortensor to OpenAI response transformation:', {
-    responseStatus: cortensorResponse.status,
-    responseStatusText: cortensorResponse.statusText,
-    hasWebSearchResults: !!webSearchResults,
-    webSearchResultCount: webSearchResults?.length || 0,
-    hasSearchQuery: !!searchQuery
-  });
+
 
   try {
     const cortensorData = await cortensorResponse.json() as CortensorResponse;
-    console.log('🔄 [RESPONSE-TRANSFORM] Parsed Cortensor response:', {
-      id: cortensorData.id,
-      model: cortensorData.model,
-      choiceCount: cortensorData.choices?.length || 0,
-      hasUsage: !!cortensorData.usage,
-      created: cortensorData.created
-    });
+
 
     // Transform choices to OpenAI format
-    console.log('🔄 [RESPONSE-TRANSFORM] Transforming choices to OpenAI format');
+
     const transformedChoices = cortensorData.choices.map((choice: CortensorChoice, index: number) => {
-      console.log(`🔄 [RESPONSE-TRANSFORM] Processing choice ${index}:`, {
-        choiceIndex: choice.index,
-        contentLength: choice.text?.length || 0,
-        finishReason: choice.finish_reason
-      });
+
 
       let content = choice.text || '';
 
       // Append search results as markdown URLs to content if they exist
       if (webSearchResults && webSearchResults.length > 0) {
-        console.log('🔄 [RESPONSE-TRANSFORM] Appending search results to content:', {
-          searchResultCount: webSearchResults.length,
-          originalContentLength: content.length
-        });
+
         const searchResultsMarkdown = formatSearchResults(webSearchResults);
         if (searchResultsMarkdown) {
           content += `\n\n**Search Results:** ${searchResultsMarkdown}`;
-          console.log('🔄 [RESPONSE-TRANSFORM] Search results appended:', {
-            finalContentLength: content.length,
-            searchResultsMarkdownLength: searchResultsMarkdown.length
-          });
+
         }
       }
 
@@ -845,20 +646,13 @@ export async function transformToOpenAI(
         finish_reason: choice.finish_reason || 'stop'
       };
 
-      console.log(`🔄 [RESPONSE-TRANSFORM] Choice ${index} transformed:`, {
-        finalIndex: transformedChoice.index,
-        finalContentLength: transformedChoice.message.content.length,
-        finishReason: transformedChoice.finish_reason
-      });
+
 
       return transformedChoice;
     });
 
     // Transform usage information
-    console.log('🔄 [RESPONSE-TRANSFORM] Transforming usage information:', {
-      hasUsageData: !!cortensorData.usage,
-      originalUsage: cortensorData.usage
-    });
+
     const transformedUsage = cortensorData.usage ? {
       prompt_tokens: cortensorData.usage.prompt_tokens,
       completion_tokens: cortensorData.usage.completion_tokens,
@@ -868,10 +662,10 @@ export async function transformToOpenAI(
       completion_tokens: 0,
       total_tokens: 0
     };
-    console.log('🔄 [RESPONSE-TRANSFORM] Usage transformed:', transformedUsage);
+
 
     // Create OpenAI-formatted response
-    console.log('🔄 [RESPONSE-TRANSFORM] Creating final OpenAI response');
+
     const openAIResponse: OpenAIResponse = {
       id: cortensorData.id || `cortensor-${Date.now()}`,
       object: 'chat.completion',
@@ -881,16 +675,10 @@ export async function transformToOpenAI(
       usage: transformedUsage
     };
 
-    console.log('🔄 [RESPONSE-TRANSFORM] OpenAI response created:', {
-      id: openAIResponse.id,
-      model: openAIResponse.model,
-      choiceCount: openAIResponse.choices.length,
-      totalTokens: openAIResponse?.usage?.total_tokens,
-      responseSize: JSON.stringify(openAIResponse).length
-    });
+
 
     // Return as Response object
-    console.log('🔄 [RESPONSE-TRANSFORM] Creating HTTP Response object');
+
     const finalResponse = new Response(
       JSON.stringify(openAIResponse),
       {
@@ -902,31 +690,16 @@ export async function transformToOpenAI(
       }
     );
 
-    console.log('🔄 [RESPONSE-TRANSFORM] Transformation completed successfully:', {
-      responseStatus: finalResponse.status,
-      responseStatusText: finalResponse.statusText,
-      hasWebSearchResults: !!webSearchResults,
-      finalResponseSize: JSON.stringify(openAIResponse).length
-    });
+
 
     return finalResponse;
   } catch (error) {
-    console.error('🔄 [RESPONSE-TRANSFORM] Critical error during response transformation:', {
-      error: error instanceof Error ? error.message : String(error),
-      errorType: error?.constructor?.name,
-      stack: error instanceof Error ? error.stack : undefined,
-      responseStatus: cortensorResponse?.status,
-      hasWebSearchResults: !!webSearchResults,
-      webSearchResultCount: webSearchResults?.length || 0
-    });
+
 
     // Return standardized error response
-    console.log('🔄 [RESPONSE-TRANSFORM] Creating error response');
+
     const errorResponse = createErrorResponse();
-    console.log('🔄 [RESPONSE-TRANSFORM] Error response created:', {
-      errorResponseId: errorResponse.id,
-      errorMessage: errorResponse.choices[0]?.message?.content
-    });
+
     return new Response(
       JSON.stringify(errorResponse),
       {

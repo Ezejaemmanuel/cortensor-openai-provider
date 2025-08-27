@@ -22,12 +22,4 @@ export const DEFAULT_MODEL_CONFIG = {
   promptTemplate: ''
 } as const;
 export const MAX_INPUT_TOKEN = 3000;
-// Log when constants are loaded
-console.log('⚙️ [CONSTANTS] Default model configuration loaded:', {
-  modelName: DEFAULT_MODEL_CONFIG.modelName,
-  temperature: DEFAULT_MODEL_CONFIG.temperature,
-  maxTokens: DEFAULT_MODEL_CONFIG.maxTokens,
-  stream: DEFAULT_MODEL_CONFIG.stream,
-  timeout: DEFAULT_MODEL_CONFIG.timeout
-});
 
