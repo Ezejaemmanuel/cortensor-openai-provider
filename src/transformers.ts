@@ -339,7 +339,6 @@ export function buildPromptWithSearchResults(
   
   const finalPrompt = `${originalPrompt}\n\n--- CURRENT DATE AND TIME ---\n${currentDateTime}\n\n--- WEB SEARCH RESULTS ---\nSearch Query: "${searchQuery}"\n\n${formattedResults}\n\nPlease use the above search results to provide an accurate, up-to-date response. Consider the current date and time when providing your answer. If the search results are relevant, incorporate the information into your answer. If they're not relevant, you can ignore them and provide a general response.`;
   
-  const finalTokens = estimateTokenCount(finalPrompt);
   
 
   
