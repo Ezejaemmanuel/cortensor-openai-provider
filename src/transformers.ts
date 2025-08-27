@@ -144,9 +144,16 @@ export async function generateSearchQuery(
 
   const userPrompt = extractMessageContent(lastMessage);
 
+  // Get current date for context
+  const currentDate = new Date().toLocaleDateString('en-US', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  });
 
   // Create a prompt to ask the model to generate a search query
-  const searchQueryPrompt = `Convert the following user prompt into a concise web search query (maximum 10 words). Only return the search query, nothing else:\n\nUser prompt: ${userPrompt}`;
+  const searchQueryPrompt = `Current date: ${currentDate}\n\nConvert the following user prompt into a concise web search query (maximum 10 words). Only return the search query, nothing else:\n\nUser prompt: ${userPrompt}`;
 
 
   try {
@@ -315,7 +322,22 @@ export function buildPromptWithSearchResults(
   }
   
   const formattedResults = formatSearchResults(finalSearchResults);
-  const finalPrompt = `${originalPrompt}\n\n--- WEB SEARCH RESULTS ---\nSearch Query: "${searchQuery}"\n\n${formattedResults}\n\nPlease use the above search results to provide an accurate, up-to-date response. If the search results are relevant, incorporate the information into your answer. If they're not relevant, you can ignore them and provide a general response.`;
+  
+  // Get current date and time for context
+  const now = new Date();
+  const currentDateTime = now.toLocaleDateString('en-US', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  }) + ' at ' + now.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    timeZoneName: 'short'
+  });
+  
+  const finalPrompt = `${originalPrompt}\n\n--- CURRENT DATE AND TIME ---\n${currentDateTime}\n\n--- WEB SEARCH RESULTS ---\nSearch Query: "${searchQuery}"\n\n${formattedResults}\n\nPlease use the above search results to provide an accurate, up-to-date response. Consider the current date and time when providing your answer. If the search results are relevant, incorporate the information into your answer. If they're not relevant, you can ignore them and provide a general response.`;
   
   const finalTokens = estimateTokenCount(finalPrompt);
   
@@ -397,6 +419,22 @@ function buildFormattedPrompt(systemMessages: CoreMessage[], conversationMessage
     .join('\n\n');
 
   prompt += conversationText;
+
+  // Get current date and time for context
+  const now = new Date();
+  const currentDateTime = now.toLocaleDateString('en-US', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  }) + ' at ' + now.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    timeZoneName: 'short'
+  });
+  
+  prompt += `\n\n--- CURRENT DATE AND TIME ---\n${currentDateTime}`;
 
   // Add assistant prompt if the last message is from user
   const lastMessage = conversationMessages[conversationMessages.length - 1];
