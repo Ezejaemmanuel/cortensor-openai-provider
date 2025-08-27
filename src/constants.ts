@@ -10,8 +10,8 @@
  */
 export const DEFAULT_MODEL_CONFIG = {
   modelName: 'cortensor-chat',
-  temperature: 0.7,
-  maxTokens: 3000,
+  temperature: 0.5,
+  maxTokens: 64000,
   topP: 0.95,
   topK: 40,
   presencePenalty: 0,
@@ -21,5 +21,5 @@ export const DEFAULT_MODEL_CONFIG = {
   promptType: 1,
   promptTemplate: ''
 } as const;
-export const MAX_INPUT_TOKEN = 3000;
+export const MAX_INPUT_TOKEN = 20000;
 
