@@ -33,7 +33,9 @@ export function createTavilySearch(options: TavilySearchOptions  = {}): WebSearc
       searchDepth: options.searchDepth || 'basic',
     };
 
-
+    // Log the search query and options being sent to Tavily
+    console.log('Tavily Search Query:', query);
+    console.log('Tavily Search Options:', JSON.stringify(searchOptions, null, 2));
 
     try {
 

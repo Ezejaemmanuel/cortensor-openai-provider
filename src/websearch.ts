@@ -254,8 +254,9 @@ export async function generateSearchQuery(
             body: JSON.stringify({
                 session_id: parseInt(sessionId),
                 prompt: searchQueryPrompt,
-                max_tokens: 50,
-                temperature: 0.1
+                max_tokens: 500,
+                temperature: 0.1,
+                timeout: 300
             })
         });
         console.log('🔎 [GENERATE_SEARCH_QUERY] API response status:', response.status);
