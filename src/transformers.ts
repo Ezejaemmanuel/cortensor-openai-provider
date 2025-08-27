@@ -136,13 +136,22 @@ export async function generateSearchQuery(
     return 'general information';
   }
 
+  // Get the last 3 messages (or all messages if fewer than 3) for better context
+  const contextMessages = messages.slice(-3);
+  
+  // Extract content from all context messages to build a comprehensive prompt
+  const contextPrompts = contextMessages.map(msg => {
+    const content = extractMessageContent(msg);
+    return `${msg.role}: ${content}`;
+  }).join('\n');
+  
+  // Fallback to last message if context building fails
   const lastMessage = messages[messages.length - 1];
   if (!lastMessage) {
-
     return 'general information';
   }
-
-  const userPrompt = extractMessageContent(lastMessage);
+  
+  const userPrompt = contextPrompts || extractMessageContent(lastMessage);
 
   // Get current date for context
   const currentDate = new Date().toLocaleDateString('en-US', { 
@@ -152,8 +161,8 @@ export async function generateSearchQuery(
     day: 'numeric' 
   });
 
-  // Create a prompt to ask the model to generate a search query
-  const searchQueryPrompt = `Current date: ${currentDate}\n\nConvert the following user prompt into a concise web search query (maximum 10 words). Only return the search query, nothing else:\n\nUser prompt: ${userPrompt}`;
+  // Create a prompt to ask the model to generate a search query based on conversation context
+  const searchQueryPrompt = `Current date: ${currentDate}\n\nBased on the following conversation context, generate a concise web search query (maximum 20 words) that would help find relevant information. Only return the search query, nothing else:\n\nConversation context:\n${userPrompt}`;
 
 
   try {
@@ -212,8 +221,9 @@ export async function generateSearchQuery(
     if (error instanceof ConfigurationError || error instanceof WebSearchError) {
       throw error; // Re-throw custom errors
     }
-    console.warn('Failed to generate search query via API, using original prompt:', error);
-    return userPrompt;
+    console.warn('Failed to generate search query via API, using fallback prompt:', error);
+    // Use last message content as fallback if context building failed
+    return contextPrompts ? contextPrompts.split('\n').pop()?.replace(/^(user|assistant|system):\s*/i, '') || extractMessageContent(lastMessage) : extractMessageContent(lastMessage);
   }
 }
 
@@ -245,45 +255,8 @@ export function formatSearchResults(
   return formattedResults;
 }
 
-/**
- * Estimates token count for a given text (rough approximation: 1 token ≈ 4 characters)
- * @param text - The text to estimate tokens for
- * @returns Estimated token count
- */
-function estimateTokenCount(text: string): number {
-  return Math.ceil(text.length / 4);
-}
 
-/**
- * Truncates search results to fit within token limits
- * @param searchResults - Array of search results
- * @param maxTokens - Maximum tokens allowed for search results
- * @returns Truncated search results
- */
-function truncateSearchResults(searchResults: WebSearchResult[], maxTokens: number): WebSearchResult[] {
-  const truncatedResults: WebSearchResult[] = [];
-  let currentTokens = 0;
-  
 
-  
-  for (const result of searchResults) {
-    const resultText = `[${truncatedResults.length + 1}] [${result.title}](${result.url})\n${result.snippet || ''}`;
-    const resultTokens = estimateTokenCount(resultText);
-    
-    if (currentTokens + resultTokens <= maxTokens) {
-      truncatedResults.push(result);
-      currentTokens += resultTokens;
-
-    } else {
-
-      break;
-    }
-  }
-  
-
-  
-  return truncatedResults;
-}
 
 /**
  * Builds a prompt enhanced with search results
@@ -303,25 +276,17 @@ export function buildPromptWithSearchResults(
   const conversationMessages = messages.filter(msg => msg.role !== 'system');
 
   const originalPrompt = buildFormattedPrompt(systemMessages, conversationMessages);
-  const originalTokens = estimateTokenCount(originalPrompt);
   
-  // Target max tokens: ~3000, reserve space for original prompt and search formatting
-  const maxTotalTokens = MAX_INPUT_TOKEN;
-  const searchFormattingTokens = 100; // Estimated tokens for search headers and instructions
-  const maxSearchResultTokens = maxTotalTokens - originalTokens - searchFormattingTokens;
   
 
   
-  // Truncate search results if necessary
-  let finalSearchResults = searchResults;
-  if (maxSearchResultTokens > 0) {
-    finalSearchResults = truncateSearchResults(searchResults, maxSearchResultTokens);
-  } else {
+  const finalSearchResults = searchResults;
 
-    finalSearchResults = [];
-  }
-  
-  const formattedResults = formatSearchResults(finalSearchResults);
+  // Create detailed search results with snippets for AI prompt
+  const detailedResults = finalSearchResults.length > 0 ? 
+    finalSearchResults.map((result, index) => {
+      return `[${index + 1}] ${result.title}\nURL: ${result.url}\nContent: ${result.snippet || 'No content available'}`;
+    }).join('\n\n') : 'No search results found.';
   
   // Get current date and time for context
   const now = new Date();
@@ -337,7 +302,7 @@ export function buildPromptWithSearchResults(
     timeZoneName: 'short'
   });
   
-  const finalPrompt = `${originalPrompt}\n\n--- CURRENT DATE AND TIME ---\n${currentDateTime}\n\n--- WEB SEARCH RESULTS ---\nSearch Query: "${searchQuery}"\n\n${formattedResults}\n\nPlease use the above search results to provide an accurate, up-to-date response. Consider the current date and time when providing your answer. If the search results are relevant, incorporate the information into your answer. If they're not relevant, you can ignore them and provide a general response.`;
+  const finalPrompt = `${originalPrompt}\n\n--- CURRENT DATE AND TIME ---\n${currentDateTime}\n\n--- WEB SEARCH RESULTS ---\nSearch Query: "${searchQuery}"\n\n${detailedResults}\n\nPlease use the above search results to provide an accurate, up-to-date response. Consider the current date and time when providing your answer. If the search results are relevant, incorporate the information into your answer. If they're not relevant, you can ignore them and provide a general response.`;
   
   
 
