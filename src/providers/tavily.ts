@@ -58,7 +58,8 @@ export function createTavilySearch(options: TavilySearchOptions  = {}): WebSearc
         return mappedResult;
       });
 
-
+      // Log first 300 characters of mapped results for debugging
+      console.warn('Mapped Results (first 300 chars):', JSON.stringify(mappedResults).substring(0, 300));
 
       return mappedResults;
     } catch (error) {

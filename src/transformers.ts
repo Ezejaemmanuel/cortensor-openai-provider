@@ -137,7 +137,6 @@ export async function transformToCortensor(
           console.log('🌍 [SEARCH_API] First result preview:', {
             title: webSearchResults[0]?.title,
             url: webSearchResults[0]?.url,
-            actualSnippet:webSearchResults[0]?.snippet,
             snippetLength: webSearchResults[0]?.snippet?.length || 0
           });
         }
