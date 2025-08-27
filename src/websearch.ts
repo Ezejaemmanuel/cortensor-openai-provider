@@ -52,7 +52,7 @@ export async function handleWebSearch(
     console.log('🌐 [HANDLE_WEB_SEARCH] Starting web search handling');
     console.log('🌐 [HANDLE_WEB_SEARCH] Messages count:', messages.length);
     console.log('🌐 [HANDLE_WEB_SEARCH] Has web search config:', !!webSearchConfig);
-    
+
     if (!webSearchConfig) {
         console.log('🌐 [HANDLE_WEB_SEARCH] No web search config provided, returning null');
         return null;
@@ -74,30 +74,35 @@ export async function handleWebSearch(
         console.log('🌐 [HANDLE_WEB_SEARCH] Generating search query from cleaned messages');
         const searchQuery = await generateSearchQuery(cleanedMessages, webSearchConfig);
         console.log('🌐 [HANDLE_WEB_SEARCH] Generated search query:', searchQuery);
-        
+
         if (!searchQuery) {
             console.log('🌐 [HANDLE_WEB_SEARCH] No search query generated, returning null');
             return null;
         }
 
         console.log('🌐 [HANDLE_WEB_SEARCH] Performing web search with query:', searchQuery);
-        
+
         if (!webSearchConfig.provider) {
             console.log('🌐 [HANDLE_WEB_SEARCH] No web search provider configured, returning null');
             return null;
         }
-        
+
         const searchResults = await performWebSearch(searchQuery, webSearchConfig.provider, webSearchConfig.maxResults || 5);
         console.log('🌐 [HANDLE_WEB_SEARCH] Web search completed, results count:', searchResults?.length || 0);
-        
+
         if (searchResults && searchResults.length > 0) {
-            console.log('🌐 [HANDLE_WEB_SEARCH] Search results preview:', searchResults.map(r => ({
-                title: r.title?.substring(0, 50) + (r.title && r.title.length > 50 ? '...' : ''),
-                url: r.url,
-                hasSnippet: !!r.snippet
-            })));
+            console.log('🌐 [HANDLE_WEB_SEARCH] Complete search results:');
+            searchResults.forEach((result, index) => {
+                console.log(`🌐 [SEARCH_RESULT_${index + 1}] Title: ${result.title || 'No title'}`);
+                console.log(`🌐 [SEARCH_RESULT_${index + 1}] URL: ${result.url || 'No URL'}`);
+                console.log(`🌐 [SEARCH_RESULT_${index + 1}] Snippet: ${result.snippet || 'No snippet available'}`);
+                console.log(`🌐 [SEARCH_RESULT_${index + 1}] Content: ${result.snippet}`);
+                console.log(`🌐 [SEARCH_RESULT_${index + 1}] ----------------------------------------`);
+            });
+        } else {
+            console.log('🌐 [HANDLE_WEB_SEARCH] No search results found');
         }
-        
+
         const result = {
             query: searchQuery,
             results: searchResults
@@ -106,7 +111,7 @@ export async function handleWebSearch(
             query: result.query,
             resultsCount: result.results?.length || 0
         });
-        
+
         return result;
     } catch (error) {
         console.error('🌐 [HANDLE_WEB_SEARCH] Web search failed:', {
@@ -116,7 +121,7 @@ export async function handleWebSearch(
         return null;
     }
 }
-  
+
 
 
 /**
@@ -174,7 +179,7 @@ export function buildPromptWithSearchResults(
 
     return finalPrompt;
 }
-  
+
 
 
 /**
@@ -237,7 +242,7 @@ export async function generateSearchQuery(
         const apiKey = process.env.CORTENSOR_API_KEY;
         const baseUrl = process.env.CORTENSOR_BASE_URL;
         const sessionId = process.env.CORTENSOR_SESSION_ID || '1';
-        
+
         // Validate configuration
         if (!apiKey || !baseUrl) {
             console.error('🔎 [GENERATE_SEARCH_QUERY] Missing API key or base URL');
@@ -254,9 +259,17 @@ export async function generateSearchQuery(
             body: JSON.stringify({
                 session_id: parseInt(sessionId),
                 prompt: searchQueryPrompt,
+                prompt_type: 1,
+                prompt_template: '',
+                stream: false,
+                timeout: 300,
+                client_reference: `search-query-${Date.now()}`,
                 max_tokens: 500,
                 temperature: 0.1,
-                timeout: 300
+                top_p: 0.95,
+                top_k: 40,
+                presence_penalty: 0,
+                frequency_penalty: 0
             })
         });
         console.log('🔎 [GENERATE_SEARCH_QUERY] API response status:', response.status);

@@ -48,8 +48,6 @@ function sanitizeMessageContent(content: string): string {
   let sanitized = content
     .replace(/<\/s>/g, '')  // Remove </s> stop tokens
     .replace(/<s>/g, '')    // Remove <s> start tokens
-    .replace(/\[\*\*search\*\*\]/gi, '') // Remove [**search**] markers
-    .replace(/\[\*\*no-search\*\*\]/gi, '') // Remove [**no-search**] markers
     .replace(/\[INST\]/g, '') // Remove instruction tokens
     .replace(/\[\/INST\]/g, '') // Remove end instruction tokens
     .trim();

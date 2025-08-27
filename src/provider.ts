@@ -150,12 +150,12 @@ export function extractModelConfiguration(requestBody: string): {
     // Copy web search configuration if present
     if (decodedConfig.webSearch) {
       modelConfig.webSearch = { ...decodedConfig.webSearch };
-      
+
       // Restore web search provider function from registry if it's a reference
       if (modelConfig.webSearch.provider && typeof modelConfig.webSearch.provider === 'string' && (modelConfig.webSearch.provider as string).startsWith('provider_')) {
         const providerId = modelConfig.webSearch.provider as string;
         const providerFunction = webSearchProviderRegistry.get(providerId);
-        
+
         if (providerFunction) {
           modelConfig.webSearch.provider = providerFunction;
 
@@ -164,7 +164,7 @@ export function extractModelConfiguration(requestBody: string): {
           delete modelConfig.webSearch.provider;
         }
       }
-      
+
 
     }
 
@@ -179,7 +179,7 @@ export function extractModelConfiguration(requestBody: string): {
     return result;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-  
+
     throw new Error(`Failed to extract model configuration: ${errorMessage}`);
   }
 }
@@ -247,19 +247,19 @@ async function processRequest(requestBody: string): Promise<Response> {
   // Extract configuration from request
 
   const { sessionId, modelConfig } = extractModelConfiguration(requestBody);
-  
+
 
 
   // Transform to Cortensor format
 
   const transformResult = await transformToCortensor(requestBody, sessionId, modelConfig);
-  
+
 
 
   // Prepare API request
   const cortensorUrl = `${CORTENSOR_BASE_URL}/api/v1/completions`;
 
-  
+
   const cortensorOptions: RequestInit = {
     method: 'POST',
     headers: {
@@ -284,7 +284,7 @@ async function processRequest(requestBody: string): Promise<Response> {
 
   const responseText = await cortensorResponse.text();
 
-  
+
   const cortensorResponseClone = new Response(responseText, {
     status: cortensorResponse.status,
     statusText: cortensorResponse.statusText,
@@ -294,9 +294,9 @@ async function processRequest(requestBody: string): Promise<Response> {
   // Transform back to OpenAI format with web search results
 
   const finalResponse = await transformToOpenAI(cortensorResponseClone, transformResult.webSearchResults, transformResult.searchQuery);
-  
 
-  
+
+
   return finalResponse;
 }
 
@@ -326,18 +326,18 @@ export const cortensorProvider = createOpenAICompatible({
 
       const requestBody = options.body as string;
 
-      
-      const result = await processRequest(requestBody);
-      
 
-      
+      const result = await processRequest(requestBody);
+
+
+
       return result;
     } catch (error) {
 
-      
+
       const errorResponse = createProviderErrorResponse(error);
 
-      
+
       return errorResponse;
     }
   },
@@ -375,16 +375,16 @@ export function cortensorModel(config: { sessionId: number } & Partial<Omit<Cort
   if (config.timeout !== undefined) configToEncode.timeout = config.timeout;
   if (config.promptType !== undefined) configToEncode.promptType = config.promptType;
   if (config.promptTemplate !== undefined) configToEncode.promptTemplate = config.promptTemplate;
-  
+
   // Handle web search configuration with provider function serialization
   if (config.webSearch !== undefined) {
     const webSearchConfig = { ...config.webSearch };
-    
+
     // If there's a provider function, store it in the registry and use a reference
     if (webSearchConfig.provider && typeof webSearchConfig.provider === 'function') {
       const providerId = `provider_${providerIdCounter++}_${Date.now()}`;
       webSearchProviderRegistry.set(providerId, webSearchConfig.provider);
-      
+
       // Replace the function with a reference
       configToEncode.webSearch = {
         ...webSearchConfig,
