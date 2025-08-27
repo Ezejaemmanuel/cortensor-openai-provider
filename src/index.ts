@@ -58,8 +58,16 @@ export {
 export {
   transformToCortensor,
   transformToOpenAI,
+} from './transformers';
+
+// Web search function exports
+export {
   extractSearchDirectives,
   generateSearchQuery,
-  formatSearchResults,
   buildPromptWithSearchResults,
-} from './transformers';
+} from './websearch';
+
+// Utility function exports
+export {
+  formatSearchResults,
+} from './utils';
