@@ -108,3 +108,6 @@ sync-to-monorepo.ps1
 TODO.MD
 log1.log
 *.log
+
+
+test-bitcoin-search.js
