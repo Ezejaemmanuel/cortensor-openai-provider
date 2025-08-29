@@ -1,5 +1,6 @@
 import type { CoreMessage } from "ai";
 import type { OpenAIResponse, WebSearchResult } from "./types";
+import { SEARCH_SNIPPET_WORD_LIMIT } from "./constants";
 
 /**
  * Creates a standardized error response in OpenAI format
@@ -36,7 +37,9 @@ export function createErrorResponse(errorMessage: string = 'Sorry, I encountered
 export function buildFormattedPrompt(systemMessages: CoreMessage[], conversationMessages: CoreMessage[]): string {
     console.log('📋 [BUILD_FORMATTED_PROMPT] Starting prompt building');
     console.log('📋 [BUILD_FORMATTED_PROMPT] System messages count:', systemMessages.length);
+    console.log('📋 [BUILD_FORMATTED_PROMPT] System messages:', systemMessages);
     console.log('📋 [BUILD_FORMATTED_PROMPT] Conversation messages count:', conversationMessages.length);
+    console.log('📋 [BUILD_FORMATTED_PROMPT] Conversation messages:', conversationMessages);
     
     let prompt = '';
 
@@ -47,12 +50,14 @@ export function buildFormattedPrompt(systemMessages: CoreMessage[], conversation
             .map((msg, index) => {
                 const content = extractMessageContent(msg);
                 console.log(`📋 [BUILD_FORMATTED_PROMPT] System message ${index + 1} content length:`, content.length);
+                console.log(`📋 [BUILD_FORMATTED_PROMPT] System message ${index + 1} content value:`, content);
                 return content;
             })
             .join('\n\n');
 
         prompt += `### SYSTEM INSTRUCTIONS ###\n${systemInstructions}\n\n### CONVERSATION ###\n`;
         console.log('📋 [BUILD_FORMATTED_PROMPT] System instructions added, current prompt length:', prompt.length);
+        console.log('📋 [BUILD_FORMATTED_PROMPT] System instructions added, current prompt value:', prompt);
     }
 
     // Add conversation history with role formatting
@@ -77,6 +82,7 @@ export function buildFormattedPrompt(systemMessages: CoreMessage[], conversation
 
     prompt += conversationText;
     console.log('📋 [BUILD_FORMATTED_PROMPT] Conversation text added, current prompt length:', prompt.length);
+    console.log('📋 [BUILD_FORMATTED_PROMPT] Conversation text added, current prompt value:', prompt);
 
     // Get current date and time for context
     const now = new Date();
@@ -103,7 +109,7 @@ export function buildFormattedPrompt(systemMessages: CoreMessage[], conversation
     }
 
     console.log('📋 [BUILD_FORMATTED_PROMPT] Final prompt built, total length:', prompt.length);
-    console.log('📋 [BUILD_FORMATTED_PROMPT] Prompt preview:', prompt.substring(0, 200) + (prompt.length > 200 ? '...' : ''));
+    console.log('📋 [BUILD_FORMATTED_PROMPT] Final prompt built, total value:', prompt);
     
     return prompt;
 }
@@ -125,17 +131,19 @@ export function extractMessageContent(message: CoreMessage): string {
     
     if (typeof message.content === 'string') {
         console.log('📝 [EXTRACT_CONTENT] String content length:', message.content.length);
-        console.log('📝 [EXTRACT_CONTENT] String content preview:', message.content.substring(0, 200) + (message.content.length > 200 ? '...' : ''));
+        console.log('📝 [EXTRACT_CONTENT] String content value:', message.content);
         return message.content;
     }
 
     if (Array.isArray(message.content)) {
         console.log('📝 [EXTRACT_CONTENT] Array content length:', message.content.length);
+        console.log('📝 [EXTRACT_CONTENT] Array content:', message.content);
         const extractedContent = message.content
             .filter(part => {
                 // Handle string parts
                 if (typeof part === 'string') {
-                    console.log('📝 [EXTRACT_CONTENT] Found string part, length:', part);
+                    console.log('📝 [EXTRACT_CONTENT] Found string part, length:', (part as string).length);
+                    console.log('📝 [EXTRACT_CONTENT] Found string part, value:', part);
                     return true;
                 }
                 // Handle text objects
@@ -153,12 +161,13 @@ export function extractMessageContent(message: CoreMessage): string {
                 // Extract text from text objects
                 const text = (part as any).text || '';
                 console.log('📝 [EXTRACT_CONTENT] Extracted text from object, length:', text.length);
+                console.log('📝 [EXTRACT_CONTENT] Extracted text from object, value:', text);
                 return text;
             })
             .join(' ')
             .trim();
         console.log('📝 [EXTRACT_CONTENT] Final extracted content length:', extractedContent.length);
-        console.log('📝 [EXTRACT_CONTENT] Final extracted content preview:', extractedContent.substring(0, 200) + (extractedContent.length > 200 ? '...' : ''));
+        console.log('📝 [EXTRACT_CONTENT] Final extracted content value:', extractedContent);
         return extractedContent;
     }
 
@@ -177,6 +186,7 @@ export function formatSearchResults(
 ): string {
     console.log('🔗 [FORMAT_SEARCH] Starting search results formatting');
     console.log('🔗 [FORMAT_SEARCH] Results count:', results.length);
+    console.log('🔗 [FORMAT_SEARCH] Results:', results);
 
     if (results.length === 0) {
         console.log('🔗 [FORMAT_SEARCH] No results to format, returning empty string');
@@ -198,7 +208,28 @@ export function formatSearchResults(
 
     const formattedResults = `\n\n**Sources:**\n${sources}`;
     console.log('🔗 [FORMAT_SEARCH] Formatted results length:', formattedResults.length);
-    console.log('🔗 [FORMAT_SEARCH] Formatted results preview:', formattedResults.substring(0, 200) + (formattedResults.length > 200 ? '...' : ''));
+    console.log('🔗 [FORMAT_SEARCH] Formatted results value:', formattedResults);
 
     return formattedResults;
+}
+
+/**
+ * Truncates a snippet to the specified number of words
+ * @param snippet - The snippet text to truncate
+ * @param wordLimit - Maximum number of words to include (defaults to SEARCH_SNIPPET_WORD_LIMIT)
+ * @returns Truncated snippet with ellipsis if truncated
+ */
+export function truncateSnippet(snippet: string, wordLimit: number = SEARCH_SNIPPET_WORD_LIMIT): string {
+    if (!snippet || snippet.trim().length === 0) {
+        return '';
+    }
+
+    const words = snippet.trim().split(/\s+/);
+    
+    if (words.length <= wordLimit) {
+        return snippet.trim();
+    }
+    
+    const truncated = words.slice(0, wordLimit).join(' ');
+    return `${truncated}...`;
 }

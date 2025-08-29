@@ -77,7 +77,7 @@ import { generateText } from 'ai';
 // Create Tavily search provider
 const tavilySearch = createTavilySearch({
   apiKey: process.env.TAVILY_API_KEY, // Optional if set in environment
-  maxResults: 5,
+  maxResults: 1,
   searchDepth: 'advanced'
 });
 
@@ -88,7 +88,7 @@ const result = await generateText({
     webSearch: {
       mode: 'prompt', // 'prompt' | 'force' | 'disable'
       provider: tavilySearch,
-      maxResults: 5
+      maxResults: 1
     }
   }),
   messages: [{ 

@@ -5,6 +5,7 @@
 // import type { WebSearchResult, WebSearchCallback } from '../provider.js';
 import type { WebSearchCallback, WebSearchResult } from '@/types';
 import { tavily, type TavilySearchOptions } from '@tavily/core';
+import { truncateSnippet } from '../utils';
 
 
 /**
@@ -28,7 +29,7 @@ export function createTavilySearch(options: TavilySearchOptions  = {}): WebSearc
 
 
     const searchOptions = {
-      maxResults: options.maxResults || 3,
+      maxResults: options.maxResults || 1,
       includeImages: options.includeImages || false,
       searchDepth: options.searchDepth || 'basic',
     };
@@ -52,7 +53,7 @@ export function createTavilySearch(options: TavilySearchOptions  = {}): WebSearc
         const mappedResult = {
           title: result.title || '',
           url: result.url || '',
-          snippet: result.content || '',
+          snippet: result.content ? truncateSnippet(result.content) : '',
         };
         
 
