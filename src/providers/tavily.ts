@@ -26,17 +26,11 @@ export function createTavilySearch(options: TavilySearchOptions  = {}): WebSearc
 
 
   return async (query: string): Promise<WebSearchResult[]> => {
-
-
     const searchOptions = {
-      maxResults: options.maxResults || 1,
+      maxResults: options.maxResults || 2,
       includeImages: options.includeImages || false,
       searchDepth: options.searchDepth || 'basic',
     };
-
-    // Log the search query and options being sent to Tavily
-    console.log('Tavily Search Query:', query);
-    console.log('Tavily Search Options:', JSON.stringify(searchOptions, null, 2));
 
     try {
 
@@ -56,18 +50,11 @@ export function createTavilySearch(options: TavilySearchOptions  = {}): WebSearc
           snippet: result.content ? truncateSnippet(result.content) : '',
         };
         
-
-        
         return mappedResult;
       });
 
-      // Log first 300 characters of mapped results for debugging
-      console.warn('Mapped Results (first 300 chars):', JSON.stringify(mappedResults).substring(0, 300));
-
       return mappedResults;
     } catch (error) {
-
-      
       throw new Error(`Tavily search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
